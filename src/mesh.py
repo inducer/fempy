@@ -2,32 +2,10 @@ import pylinear.matrices as num
 import pylinear.linear_algebra as la
 import element
 import expression
-import matrix_builder
 import pyangle
 import tools
 import math
 import fempy.spatial_btree as spatial_btree
-
-
-
-
-def _makeDistortedLinearElement(nodes, dof_manager):
-  node_coords = [ node.coordinates() for node in nodes ]
-
-  mat = num.transpose(num.array([ n - node_coords[0] for n in node_coords[1:] ]))
-  matinv = la.inverse(mat)
-  nc0 = node_coords[0]
-
-  variables = [ ("variable","0"), ("variable","1") ]
-
-  def inv_func(point):
-    return num.matrixmultiply(matinv, point - nc0)
-    
-  return element.tDistortedTwoDimensionalTriangularFiniteElement(
-      nodes, [ 
-        ("+", nc0[0], expression.linearCombination(mat[0], variables)), 
-        ("+", nc0[1], expression.linearCombination(mat[1], variables)), 
-      ], inv_func, dof_manager)
 
 
 
@@ -81,6 +59,7 @@ class tShapeSection:
            dtl <= tools.norm2(i-last_point) * relative_threshold:
           return True
         last_point = i
+    return False
 
 
 
@@ -255,7 +234,6 @@ class _tPyangleMesh(tMesh):
           return False
 
       possible_guides = []
-      guided_nodes = []
       for node in my_nodes:
         guide = self.findShapeGuideNumber(out_p.PointMarkers.get(node.Tag))
         if isinstance(guide, tShapeGuide) and guide not in possible_guides:
@@ -271,7 +249,6 @@ class _tPyangleMesh(tMesh):
           elif len(my_guided_nodes) == 2:
             possible_guides.append(guide)
             if len(possible_guides) == 1:
-              guided_nodes = my_guided_nodes
               index_unguided = my_index_unguided
 
       if len(possible_guides) > 1:
@@ -344,37 +321,6 @@ class _tPyangleMesh(tMesh):
                                         ("*", expr_alpha, 
                                          ("-", expr_guide, expr_linear_reference)),
                                         expr_linear_transform[deform_coord])
-
-        if False:
-          txtoreal = expression.compileVectorField(expr_transform)
-          alpha_c = expression.compileScalarField(expr_alpha)
-          offset_c = expression.compileScalarField(("-", expr_guide, expr_linear_transform[deform_coord]))
-
-          deform_file = file(",,deform.data", "w")
-          segments = 20
-          h = 1./segments
-          for y_i in range(segments):
-            y = float(y_i)/segments
-            for x_i in range(segments-y_i):
-              x = float(x_i)/segments
-
-              def write(x,y):
-                alpha = alpha_c([x,y])
-                offset = offset_c([x,y])
-                deform = txtoreal([x,y])
-                deform_file.write("%f\t%f\t%f\n" % (deform[0], deform[1], alpha))
-
-              # 0
-              # 12
-              write(x,y+h)
-              write(x,y)
-              write(x+h,y)
-              write(x,y+h)
-              deform_file.write("\n\n")
-
-          nodes_before = [[0,0], [1,0], [0,1]]
-          for i in range(3):
-            assert tools.norm2(node_coords[i] - txtoreal(nodes_before[i])) < 1e-10
 
         # compose inverse nonlinear transform
         func_transform = expression.compileVectorField(expr_transform)

@@ -1,7 +1,6 @@
+import tools
 import pylinear.matrices as num
 import pylinear.linear_algebra as la
-import math
-import tools
 
 
 
@@ -20,7 +19,6 @@ def makeH1ErrorNormSquared(analytic_solution, grad_analytic_solution, solution_v
     def errorFunctionH1(point, solution_func_value):
       real_point = element.transformToReal(point)
       xf_jac = element.getTransformJacobian(point)
-      xf_jac_det = la.determinant(xf_jac)
       xf_jac_inv = la.inverse(xf_jac)
       twisted_grad = num.matrixmultiply(num.transpose(xf_jac_inv), approx_grad_solution(point))
 
@@ -38,7 +36,6 @@ def makeEnergyErrorNormSquared(grad_analytic_solution, solution_vector):
     def errorFunctionH1(point, solution_func_value):
       real_point = element.transformToReal(point)
       xf_jac = element.getTransformJacobian(point)
-      xf_jac_det = la.determinant(xf_jac)
       xf_jac_inv = la.inverse(xf_jac)
       twisted_grad = num.matrixmultiply(num.transpose(xf_jac_inv), approx_grad_solution(point))
 

@@ -1,5 +1,4 @@
 import pylinear.matrices as num
-import types
 
 
 

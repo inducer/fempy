@@ -46,6 +46,10 @@ class tJob:
     else:
       return self.Name in VISIBLE_JOBS
 
+def printJobSummary():
+  for key in JOB_TIMES:
+    print key, " " * (50-len(key)), JOB_TIMES[key]
+
 
 
 

@@ -131,6 +131,12 @@ class tFiniteGrid(tGrid):
     def limits(self):
         return self._Limits
 
+    def __iter__(self):
+        return iter(self.asSequence().getAllIndices())
+
+    def iterkeys():
+        return self.__iter__()
+
     def gridPointCounts(self):
         """Returns the number of grid intervals in each direction.
         """
@@ -150,12 +156,6 @@ class tFiniteGrid(tGrid):
             multidim_idx = seq.translateSingleIndex(idx)
             f(multidim_idx)
   
-    def forEachGridPoint(self, f):
-        seq = self.asSequence()
-        for idx in range(len(seq)):
-            multidim_idx = seq.translateSingleIndex(idx)
-            f(multidim_idx)
-
 
 
 
@@ -216,6 +216,9 @@ class tDependentDictionary:
 
     def __setitem__(self, key, value):
         self._Dictionary[key] = value
+    
+    def genuineKeys(self):
+        return self._Dictionary.keys()
 
 
 
@@ -289,6 +292,12 @@ def makeRotationMatrix(radians, n = 2, axis1 = 0, axis2 = 1, typecode = num.Floa
     mat[axis1,axis2] = -math.sin(radians)
     mat[axis2,axis2] = math.cos(radians)
     return mat
+
+
+
+
+def getParallelogramVolume(vectors):
+    return vectors[0][0] * vectors[1][1] - vectors[1][0] * vectors[0][1]
 
 
 

@@ -46,8 +46,8 @@ def oneAt(*point):
 def makeFormFunctionExpression(order, dimensions, constraints, extra_expressions = []):
   variables = [ ("variable","%d" % dim) for dim in range(0, dimensions) ]
   expressions = [ 1 ] + [ expression.multiplyUp(combination)
-    for ord in range(1, order + 1)
-    for combination in generateCombinations(variables, ord) ] + extra_expressions
+    for current_ord in range(1, order + 1)
+    for combination in generateCombinations(variables, current_ord) ] + extra_expressions
 
   n = len(expressions)
 

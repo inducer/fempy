@@ -38,11 +38,11 @@ class tMatrixBuilder:
   def forceIdentityMap(self, dof_number):
     pass
 
-  def addScattered(self, small_matrix, small_matrix_rows):
+  def addScattered(self, small_matrix, small_matrix_rows, small_matrix_columns):
     pass
 
   def addScatteredSymmetric(self, small_matrix, small_matrix_rows):
-    self.addScattered(self, small_matrix, small_matrix_rows, small_matrix_rows)
+    self.addScattered(small_matrix, small_matrix_rows, small_matrix_rows)
 
 
 

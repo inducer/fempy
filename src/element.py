@@ -12,9 +12,7 @@ import tools
 
 class tFiniteElementError(Exception):
   def __init__(self, value):
-    self.value = value
-  def __str__(self):
-    return repr(self.value)
+    Exception.__init__(self, value)
 
 
 
@@ -90,13 +88,13 @@ class tFiniteElement:
     return self.NodeNumbers
 
   # Tools ---------------------------------------------------------------------
-  def transformToReal(self):
+  def transformToReal(self, point):
     """Transforms a unit vector inside the unit element to its corresponding
     vector in the transformed element.
     """
     raise RuntimeError, "not implemented"
 
-  def transformToUnit(self):
+  def transformToUnit(self, point):
     """The inverse of transformToReal.
     """
     raise RuntimeError, "not implemented"
@@ -200,9 +198,9 @@ class tFiniteElement:
     return f
 
   # Visualization -------------------------------------------------------------
-  def visualizationData(self, solution_vector):
-    """This function returns a visualization.tVisualizationData structure
-    for this element, taking into account the given solution vector.
+  def getVisualizationData(self, solution_vector, vis_data):
+    """This function adds itself to the given visualization.tVisualizationData
+    data structure, taking into account the given solution vector.
     """
     raise RuntimeError, "not implemented"
 
@@ -301,7 +299,7 @@ QuadraticFormFunctionKit = tFormFunctionKit(2, _StandardNodes,
                                             [tInbetweenPoint(0, 1, 1, 2),
                                              tInbetweenPoint(1, 2, 1, 2),
                                              tInbetweenPoint(2, 0, 1, 2)],
-                                            vis_segments = 4)
+                                            vis_segments = 2)
 
 
 
@@ -433,10 +431,10 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     return jacobian_det * integration.integrateOnUnitTriangle(functionInIntegral)
 
-  def visualizationData(self, solution_vector):
-    return _visualizeTriangle(self, self.Nodes,
-                              solution_vector, self.FormFunctionKit,
-                              self.FormFunctionKit.recommendNumberOfVisualizationSegments())
+  def getVisualizationData(self, solution_vector, vis_data):
+    _visualizeTriangle(vis_data, self, self.Nodes,
+                       solution_vector, self.FormFunctionKit,
+                       self.FormFunctionKit.recommendNumberOfVisualizationSegments())
 
 
 
@@ -471,7 +469,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
   def boundingBox(self):
     # FIXME: this will often be wrong
-    coords = [ node.coordinates() for node in self.NodeTags[:3] ]
+    coords = [node.Coordinates for node in self.Nodes]
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
@@ -563,56 +561,74 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     return integration.integrateOnUnitTriangle(functionInIntegral)
 
-  def visualizationData(self, solution_vector):
-    segments = max(10, self.FormFunctionKit.recommendNumberOfVisualizationSegments())
-    return _visualizeTriangle(self, self.Nodes,
-                              solution_vector, self.FormFunctionKit,
-                              segments)
+  def getVisualizationData(self, solution_vector, vis_data):
+    segments = max(8, self.FormFunctionKit.recommendNumberOfVisualizationSegments())
+    _visualizeTriangle(vis_data, self, self.Nodes,
+                       solution_vector, self.FormFunctionKit,
+                       segments)
 
 
 
 
 # Tools ----------------------------------------------------------------
-def _visualizeTriangle(element, element_nodes, solution_vector, 
+def _visualizeTriangle(vis_data, element, element_nodes, solution_vector, 
                        form_function_kit, segments = 8):
-  node_numbers_laid_out = []
-  nodes = []
-  node_values = []
-
+  form_funcs = form_function_kit.formFunctions()
   h = 1./segments
 
-  for x_n in range(segments+1):
+  # first column
+  line_of_node_numbers = []
+
+  line_of_node_numbers.append(element_nodes[0].Number)
+  for y_n in range(1, segments):
+    y = y_n * h
+    
+    value = 0
+    for i in range(len(form_funcs)):
+      value += form_funcs[i](num.array([0,y])) * \
+               solution_vector[element_nodes[i].Number]
+      
+    line_of_node_numbers.append(
+      vis_data.registerLocalNode(
+      element.transformToReal(num.array([0,y])), value))
+
+  line_of_node_numbers.append(element_nodes[2].Number)
+
+  node_numbers_laid_out = [line_of_node_numbers]
+
+  # in between
+  for x_n in range(1,segments):
     x = x_n * h
     line_of_node_numbers = []
     for y_n in range(segments-x_n+1):
       y = y_n * h
-      nodes.append(element.transformToReal(num.array([x,y])))
-      line_of_node_numbers.append(-len(nodes))
 
       value = 0
-      form_funcs = form_function_kit.formFunctions()
       for i in range(len(form_funcs)):
         value += form_funcs[i](num.array([x,y])) * \
                  solution_vector[element_nodes[i].Number]
-      node_values.append(value)
+
+      line_of_node_numbers.append(
+        vis_data.registerLocalNode(
+        element.transformToReal(num.array([x,y])), value))
+
     node_numbers_laid_out.append(line_of_node_numbers)
 
-  node_numbers_laid_out[0][0] = 0
-  node_numbers_laid_out[-1][0] = 1
-  node_numbers_laid_out[0][-1] = 2
+  # last column
+  node_numbers_laid_out.append([element_nodes[1].Number])
 
   triangles = []
   for x_n in range(segments):
     for y_n in range(segments-x_n):
-      triangles.append(
-        [node_numbers_laid_out[x_n][y_n],
-         node_numbers_laid_out[x_n+1][y_n],
-         node_numbers_laid_out[x_n][y_n+1]])
+      vis_data.addTriangle(
+        node_numbers_laid_out[x_n][y_n],
+        node_numbers_laid_out[x_n+1][y_n],
+        node_numbers_laid_out[x_n][y_n+1])
       if y_n != segments-x_n-1:
-        triangles.append(
-          [node_numbers_laid_out[x_n+1][y_n+1],
-           node_numbers_laid_out[x_n][y_n+1],
-           node_numbers_laid_out[x_n+1][y_n]])
+        vis_data.addTriangle(
+          node_numbers_laid_out[x_n+1][y_n+1],
+          node_numbers_laid_out[x_n][y_n+1],
+          node_numbers_laid_out[x_n+1][y_n])
 
   # one ccw traversal of the boundary
   my_poly = []
@@ -623,9 +639,6 @@ def _visualizeTriangle(element, element_nodes, solution_vector,
   for y_n in range(segments)[-1::-1]:
     my_poly.append(node_numbers_laid_out[0][y_n])
 
-  #raw_input()
+  vis_data.addExtraPolygon(my_poly)
 
-  return visualization.tVisualizationData(
-    element_nodes, 
-    [solution_vector[nd.Number] for nd in element_nodes],
-    triangles, nodes, node_values, [my_poly])
+  #raw_input()
