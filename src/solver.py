@@ -239,6 +239,11 @@ def resolveConstraints(constraints):
     new_constraints = {}
     for node, (offset, lincomb_specifier) in constraints.iteritems():
         assert offset == 0
+        #print "resolving", node.Coordinates, "out of",
+        #for coeff, other_node in lincomb_specifier:
+            #print other_node.Coordinates,
+        #print
+
         new_constraints[node] = resolve_to_unconstrained(lincomb_specifier)
 
     return new_constraints

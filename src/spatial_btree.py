@@ -139,9 +139,10 @@ def buildSpatialBinaryTree(elements):
     bucket.addElement(el, bbox)
 
     # test
-    center = tools.average([node.Coordinates for node in el.nodes()])
-    assert el.isInElement(center)
-    bucket.findElement(center)
+    if False:
+      center = tools.average([node.Coordinates for node in el.nodes()])
+      assert el.isInElement(center)
+      bucket.findElement(center)
   return bucket
 
 

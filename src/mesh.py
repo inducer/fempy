@@ -134,7 +134,6 @@ class tMesh:
   def __init__(self):
     """Sets up parameters and basic data for the mesh and generates it.
     """
-    self.ElementFinder = None
     self.DOFManager = element.tDOFManager()
     self.Elements = []
 
@@ -225,15 +224,6 @@ class _tPyangleMesh(tMesh):
     self.Order = order
     self.ShapeSections = shape_sections
     self.__postprocessTriangleOutput__(generating_parameters)
-
-  def __getstate__(self):
-    my_dict = self.__dict__.copy()
-    del my_dict["ElementFinder"]
-    return my_dict
-
-  def __setstate__(self, my_dict):
-    tMesh.__init__(self)
-    self.__dict__.update(my_dict)
 
   def findShapeGuideNumber(self, number):
     if number == 0:

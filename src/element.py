@@ -292,7 +292,7 @@ QuadraticFormFunctionKit2DTriangle = tFormFunctionKit(2, _Standard2DNodes,
                                                       [tInbetweenPoint(0, 1, 1, 2),
                                                        tInbetweenPoint(1, 2, 1, 2),
                                                        tInbetweenPoint(2, 0, 1, 2)],
-                                                      vis_segments = 2)
+                                                      vis_segments = 4) # only 2 necessary
 # legacy support
 LinearFormFunctionKit = LinearFormFunctionKit2DTriangle
 QuadraticFormFunctionKit = QuadraticFormFunctionKit2DTriangle
