@@ -40,6 +40,8 @@ def evaluate(expression, variable_assignments = {}):
     ("sin",1): lambda x: math.sin(ev(x)),
     ("cos",1): lambda x: math.cos(ev(x)),
     ("tan",1): lambda x: math.tan(ev(x)),
+    ("log",1): lambda x: math.log(ev(x)),
+    ("exp",1): lambda x: math.exp(ev(x)),
     ("ispos",1): lambda x: ispos(ev(x)),
     ("variable",1): lambda x: variable_assignments[x],
     None: lambda x: x 
@@ -70,6 +72,8 @@ def substitute(expression, variable_assignments = {}):
     ("sin",VAR), lambda x: ("sin",subs(x)),
     ("cos",VAR), lambda x: ("cos",subs(x)),
     ("tan",VAR), lambda x: ("tan",subs(x)),
+    ("log",VAR), lambda x: ("log",subs(x)),
+    ("exp",VAR), lambda x: ("exp",subs(x)),
     ("ispos",VAR), lambda x: ("ispos",subs(x)),
     ("variable",VAR), substituteVariable,
     VAR, lambda x: x 
@@ -109,6 +113,8 @@ def isConstant(expression, wrt = None):
     ("sin",VAR), lambda x: isc(x),
     ("cos",VAR), lambda x: isc(x),
     ("tan",VAR), lambda x: isc(x),
+    ("log",VAR), lambda x: isc(x),
+    ("exp",VAR), lambda x: isc(x),
     ("ispos",VAR), lambda x: isc(x),
     ("variable",VAR), isVarConstant,
     VAR, lambda x: True
@@ -161,6 +167,8 @@ def differentiate(expression, variable):
     ("sin",1): lambda x: ("*", diff(x), ("cos",x)),
     ("cos",1): lambda x: ("*", ("-", diff(x)), ("sin",x)),
     ("tan",1): lambda x: ("*", diff(x), ("+", 1, ("**", ("tan", x), 2))),
+    ("log",1): lambda x: ("*", diff(x), ("/", 1, x)),
+    ("exp",1): lambda x: ("*", diff(x), ("exp", x)),
     ("ispos",1): ispos_diff,
     ("variable",1): diffVariable,
     None: lambda x: 0.
@@ -243,6 +251,8 @@ def simplify(expression):
     ("sin",1): lambda x: ("sin",simp(x)),
     ("cos",1): lambda x: ("cos",simp(x)),
     ("tan",1): lambda x: ("tan",simp(x)),
+    ("log",1): lambda x: ("log",simp(x)),
+    ("exp",1): lambda x: ("exp",simp(x)),
     ("ispos",1): lambda x: ("ispos",simp(x)),
     ("variable",1): lambda x: ("variable",x),
     None: lambda x: x
@@ -275,6 +285,8 @@ def infixify(expression, variable_substitutions = {}):
     ("sin",VAR) , lambda x: "sin(%s)"  % pythonify(x),
     ("cos",VAR) , lambda x: "cos(%s)"  % pythonify(x),
     ("tan",VAR) , lambda x: "tan(%s)"  % pythonify(x),
+    ("log",VAR) , lambda x: "log(%s)"  % pythonify(x),
+    ("exp",VAR) , lambda x: "exp(%s)"  % pythonify(x),
     ("ispos",VAR) , lambda x: "ispos(%s)"  % pythonify(x),
     ("variable",VAR), lambda x:"%s" % str(substitute(x)),
     VAR, lambda x: str(x)
@@ -308,6 +320,8 @@ def compile(expression, variable_substitutions = {}, variables = []):
     ("sin",VAR) , lambda x: "math.sin(%s)"  % pythonify(x),
     ("cos",VAR) , lambda x: "math.cos(%s)"  % pythonify(x),
     ("tan",VAR) , lambda x: "math.tan(%s)"  % pythonify(x),
+    ("log",VAR) , lambda x: "math.log(%s)"  % pythonify(x),
+    ("exp",VAR) , lambda x: "math.exp(%s)"  % pythonify(x),
     ("ispos",VAR) , lambda x: "ispos(%s)"  % pythonify(x),
     ("variable",VAR), addVariable,
     VAR, lambda x: str(x)
