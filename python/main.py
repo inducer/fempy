@@ -9,8 +9,6 @@ import sys
 # Numerics imports ------------------------------------------------------------
 import Numeric as num
 import LinearAlgebra as la
-import spmatrix as sparse
-import itsolvers
 
 # FEM imports -----------------------------------------------------------------
 sys.path.append( "pyangle" )
@@ -20,54 +18,8 @@ import spatial_btree
 from matrixbuilder import *
 from element import *
 from stopwatch import *
-
-
-
-
-# tools -----------------------------------------------------------------------
-def flatten( list ):
-  result = []
-  for i in list:
-    result.extend( i )
-  return result
-
-
-
-
-def writeSymmetricMatrixAsCSV( filename, matrix ):
-  mat_file = file( filename, "w" )
-  h,w = matrix.shape
-  for row in range( 0, h ):
-    for column in range( 0, row ):
-      mat_file.write( "%f," % matrix[ row, column ] )
-    for column in range( row, w ):
-      mat_file.write( "%f," % matrix[ column, row ] )
-    mat_file.write( "\n" )
-
-
-
-
-def norm2( vector ):
-  return math.sqrt( num.dot( vector, vector ) )
-
-
-
-
-def sequence2list( sequence ):
-  result = []
-  for i in sequence:
-    result.append( i )
-  return result
-
-
-
-
-def vector2tuple( vector ):
-  size, = vector.shape
-  if size == 2:
-    return vector[ 0 ], vector[ 1 ], 0
-  else:
-    return vector[ 0 ], vector[ 1 ], vector[ 2 ]
+from solver import *
+from tools import *
 
 
 
@@ -115,8 +67,12 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
           [ c,d,b, between( c, d ), between( d, b ), between( b, c ) ], 
           dof_manager )
       else:
-        lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,d ], dof_manager )
-        upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ c,d,b ], dof_manager )
+        if False:
+          lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,c ], dof_manager )
+          upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ d,a,c ], dof_manager )
+        else:
+          lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,d ], dof_manager )
+          upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ c,d,b ], dof_manager )
 
       elements.append( lower_el )
       elements.append( upper_el )
@@ -126,72 +82,26 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
   
 
 
-# equation solvers ------------------------------------------------------------
-def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 ):
-  """Solve the Poisson equation
+def buildShapeGeometry( dof_manager, shape_points, refinement_func ):
+  out_p = pyangle.triangulateArea( shape_points, refinement_func = refinement_func )
 
-  laplace u = f
-  with u = u_d in the dirichlet_nodes.
-  """
+  pyangle.writeGnuplotMesh( "+tris.dat", out_p )
 
-  dof_count = dof_manager.countDegreesOfFreedom()
+  pts = out_p.Points
+  tris = out_p.Triangles
 
-  s_builder = tSymmetricSparseMatrixBuilder( dof_count )
-  b_builder = tDenseVectorBuilder( dof_count )
+  nodes = []
+  for node in range( pts.size() ):
+    nodes.append( tNode( num.array( [ pts.getSub( node, 0 ), pts.getSub( node, 1 ) ] ) ) )
 
-  job = tJob( "matrix" )
-  for el in elements:
-    el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
-    el.addVolumeIntegralOverFormFunction( b_builder, f )
-  job.done()
+  elements = []
+  for tri in range( tris.size() ):
+    elements.append( tTwoDimensionalLinearTriangularFiniteElement( [ 
+      nodes[ tris.getSub( tri, 0 ) ],
+      nodes[ tris.getSub( tri, 1 ) ],
+      nodes[ tris.getSub( tri, 2 ) ] ], dof_manager ) )
 
-  job = tJob( "bcs" )
-  b_mat = b_builder.matrix()
-  
-  for node in dirichlet_nodes:
-    boundary_value = u_d( node.coordinates() )
-    i = dof_manager.getDegreeOfFreedomNumber( node )
-    b_mat += s_builder.column( i ) * boundary_value
-    s_builder.forceIdentityMap( i )
-    b_mat[ i ] = -boundary_value
-
-  negated_b = b_builder.matrix() * -1
-  compiled_s = s_builder.matrix().to_sss()
-  x = num.zeros( (dof_count,), num.Float )
-  job.done()
-
-  job = tJob( "solve" )
-  info, iter, relres = itsolvers.pcg( compiled_s, negated_b, x, 1e-12, dof_count )
-  job.done()
-  print "  info:", info
-  print "  iter:", iter
-  print "  relative residual: ", relres
-
-  residual = num.zeros( x.shape, num.Float )
-  compiled_s.matvec( x, residual )
-  residual -= b_mat
-
-  print "  absolute residual: ", norm2( residual )
-
-  return x
-
-
-
-
-def solveHelmholtz( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 ):
-  dof_count = dof_manager.countDegreesOfFreedom()
-
-  s_builder = tSymmetricSparseMatrixBuilder( dof_count )
-  m_builder = tSymmetricSparseMatrixBuilder( dof_count )
-
-  print "matrix..."
-  for el in elements:
-    el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
-    el.addVolumeIntegralOverFormFunctions( m_builder )
-
-
-
-
+  return nodes,elements
 
 
 
@@ -237,7 +147,12 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob( "geometry" )
-  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, True )
+  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
+
+  def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
+    return area > 0.001
+  shape = [ (0,0), (1,0), (1,1), (0,1) ]
+  #nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement )
   job.done()
 
   job = tJob( "btree" )
@@ -255,8 +170,8 @@ def poissonDemo():
 
   s_f1 = makeSolutionFunction( elements, solution, finder )
 
-  #visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
-  visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
+  visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  #visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
   #visualisation.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 

@@ -20,17 +20,4 @@ def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
 out_p = pyangle.triangulateArea( points, [ (0,0) ], verbose = True, 
     refinement_func = needsRefinement )
 
-gp_file = file( "+tris.dat", "w" )
-
-pts = out_p.Points
-tris = out_p.Triangles
-
-for tri in range( out_p.Triangles.size() ):
-  for pt in range( 0, 3 ):
-    gp_file.write( "%f %f\n" % (
-      pts.getSub( tris.getSub( tri, pt ), 0 ),
-      pts.getSub( tris.getSub( tri, pt ), 1 ) ) )
-  gp_file.write( "%f %f\n" % (
-    pts.getSub( tris.getSub( tri, 0 ), 0 ),
-    pts.getSub( tris.getSub( tri, 0 ), 1 ) ) )
-  gp_file.write( "\n" )
+pyangle.writeGnuplotMesh( "+tris.dat", out_p )

@@ -62,7 +62,7 @@ def differentiate( expression, variable ):
     ("/",VAR,VAR), lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2 )),
     # This assumes that the exponent is constant.
     ("**",VAR,VAR), lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
-    ("-",VAR) , lambda x: ("-",x),
+    ("-",VAR) , lambda x: ("-",diff(x)),
     ("variable",VAR), diffVariable,
     VAR, lambda x: 0.
   ]
@@ -154,12 +154,34 @@ def simplify( expression ):
 
 
 
+def infixify( expression, variable_substitutions = {} ):
+  determined_variables = []
+
+  def pythonify( expr ):
+    return pattern.switch( ruleset, expr )
+
+  ruleset = [
+    ("+",VAR,VAR), lambda x,y: "(%s + %s)" % ( pythonify(x), pythonify( y ) ),
+    ("-",VAR,VAR), lambda x,y: "(%s - %s)" % ( pythonify(x), pythonify( y ) ),
+    ("*",VAR,VAR), lambda x,y: "(%s * %s)" % ( pythonify(x), pythonify( y ) ),
+    ("/",VAR,VAR), lambda x,y: "(%s / %s)" % ( pythonify(x), pythonify( y ) ),
+    ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % ( pythonify(x), pythonify( y ) ),
+    ("-",VAR) , lambda x: "(-%s)"  % pythonify(x),
+    ("variable",VAR), lambda x:"%s" % str( variable_substitutions[x] ),
+    VAR, lambda x: str(x)
+  ]
+
+  return pythonify( expression )
+
+
+
+
 def compile( expression, variable_substitutions = {}, variables = [] ):
   determined_variables = []
 
   def addVariable( var ):
     if var in variable_substitutions:
-      var = variable_substitutions[ var ]
+      var = variable_substitutions[var]
     if var not in determined_variables:
       determined_variables.append( var )
     return var

@@ -102,42 +102,47 @@ class tFiniteElement:
 
 
 
+# helpers ---------------------------------------------------------------------
+def compileExpression( expr ):
+  substitutions = {}
+  for i in range( 3 ):
+    substitutions[ "%d" % i ] = "point[%d]" % i
+
+  return expression.compile( expr, substitutions, [ "point" ] )
+
+
+
+
+def addFormFunctions( cls, form_func_expr, dimensions ):
+  cls.FormFunctionExpressions = form_func_expr
+  n = cls.FormFunctionCount = len( cls.FormFunctionExpressions )
+
+  cls.FormFunctions = \
+    [ compileExpression( expr ) for expr in cls.FormFunctionExpressions ]
+  cls.DifferentiatedFormFunctions = \
+    [
+    [ compileExpression( expression.simplify( expression.differentiate( expr, "%i" % dim ) ) )
+      for expr in cls.FormFunctionExpressions ]
+    for dim in range( dimensions ) ]
+
+  crossint = num.zeros( (n,n), num.Float )
+
+  for i in range( n ):
+    for j in range( 0, i+1 ):
+      fi = cls.FormFunctions[ i ]
+      fj = cls.FormFunctions[ j ]
+
+      crossint[i,j] = crossint[j,i] = \
+        integration.integrateFunctionOnUnitTriangle(
+            lambda point: fi( point ) * fj( point ) )
+
+  cls.FormFunctionCrossIntegrals = crossint
+
+
+
+
 # implementations -------------------------------------------------------------
 class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
-  # form function compilation -------------------------------------------------
-  # defined by subclass:
-  FormFunctionExpressions = None
-
-  def compileFormFunctions( cls ):
-    n = cls.FormFunctionCount = len( cls.FormFunctionExpressions )
-
-    def ffcompile( expr ):
-      return expression.compile( expr, { "0": "point[0]", "1": "point[1]" }, [ "point" ] )
-
-    cls.FormFunctions = \
-      [ ffcompile( expr ) for expr in cls.FormFunctionExpressions ]
-    cls.FormFunctionsDx = \
-      [ ffcompile( expression.simplify( expression.differentiate( expr, "0" ) ) )
-        for expr in cls.FormFunctionExpressions ]
-    cls.FormFunctionsDy = \
-      [ ffcompile( expression.simplify( expression.differentiate( expr, "1" ) ) )
-        for expr in cls.FormFunctionExpressions ]
-
-    crossint = num.zeros( (n,n), num.Float )
-
-    for i in range( n ):
-      for j in range( 0, i+1 ):
-        fi = cls.FormFunctions[ i ]
-        fj = cls.FormFunctions[ j ]
-
-        crossint[i,j] = crossint[j,i] = \
-          integration.integrateFunctionOnUnitTriangle(
-              lambda point: fi( point ) * fj( point ) )
-
-    cls.FormFunctionCrossIntegrals = crossint
-
-  compileFormFunctions = classmethod( compileFormFunctions )
-
   # initialization ------------------------------------------------------------
   def __init__( self, nodes, dof_manager ):
     tFiniteElement.__init__( self, nodes, dof_manager )
@@ -155,7 +160,12 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     self.TransformMatrixInverse = la.inverse( self.TransformMatrix )
     self.Origin = nodes[0].coordinates()
 
-    self.Area = 0.5 * math.fabs( la.determinant( self.TransformMatrix ) )
+    determinant = la.determinant( self.TransformMatrix )
+
+    # if not, the triangle has the wrong orientation
+    assert determinant > 0
+
+    self.Area = 0.5 * determinant
     
   # internal helpers ----------------------------------------------------------
   def transformToReal( self, point ):
@@ -180,6 +190,155 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
+    a00 = self.TransformMatrix[0,0]
+    a01 = self.TransformMatrix[0,1]
+    a10 = self.TransformMatrix[1,0]
+    a11 = self.TransformMatrix[1,1]
+
+    fdxr = None;fdyr = None;fdxc = None;fdyc = None;
+
+    if which_derivative == "both":
+      def functionInIntegral( point ):
+	return ( \
+	  ( a00 * fdxr( point ) + a10 * fdyr( point ) ) * \
+	  ( a00 * fdxc( point ) + a10 * fdyc( point ) ) + \
+	  ( a01 * fdxr( point ) + a11 * fdyr( point ) ) * \
+	  ( a01 * fdxc( point ) + a11 * fdyc( point ) ) 
+	  )
+    else:
+      raise tFiniteElementError, "which_derivative != 'both' not implemented"
+
+    node_count = len( self.Nodes )
+    influence_matrix = num.zeros( (node_count, node_count), num.Float )
+    for row in range( 0, node_count ):
+      for column in range( 0, row + 1 ):
+	fdxr = self.DifferentiatedFormFunctions[0][row]
+	fdxc = self.DifferentiatedFormFunctions[0][column]
+	fdyr = self.DifferentiatedFormFunctions[1][row]
+	fdyc = self.DifferentiatedFormFunctions[1][column]
+
+	influence_matrix[row,column] = \
+	influence_matrix[column,row] = \
+	    integration.integrateFunctionOnUnitTriangle( functionInIntegral )
+
+    jacobian_det = 1/(2*self.Area)
+
+    builder.add( jacobian_det * influence_matrix, self.NodeNumbers )
+    print self.TransformMatrix
+    print influence_matrix
+    #raw_input()
+
+  def addVolumeIntegralOverFormFunctions( self, builder ):
+    jacobian_det = self.Area * 2
+    builder.add( jacobian_det * self.FormFunctionCrossIntegrals, 
+	self.NodeNumbers )
+
+  def addVolumeIntegralOverFormFunction( self, builder, f ):
+    n = self.FormFunctionCount
+    influences = num.zeros( (n,), num.Float )
+
+    jacobian_det = self.Area * 2
+
+    for i in range( n ):
+      ff = self.FormFunctions[i]
+      influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle( 
+        lambda point: f( self.transformToReal( point ) ) * ff(  point ) )
+
+    builder.add( influences, self.NodeNumbers )
+
+  def getSolutionFunction( self, solution_vector ):
+    node_values = num.take( solution_vector, self.NodeNumbers )
+    def f( point ):
+      result = 0
+      for i in range( 0, self.FormFunctionCount ):
+	result += self.FormFunctions[ i ]( point ) * node_values[ i ]
+      return result
+    return f
+
+
+
+
+
+# concrete two-dimensional triangular elements --------------------------------
+class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
+  def visualizationData( self, solution_vector ):
+    return visualization.tVisualizationData( 
+	self.Nodes, 
+	[ solution_vector[ n ] for n in self.NodeNumbers ],
+	[ (0,1,2) ] )
+
+addFormFunctions( 
+  tTwoDimensionalLinearTriangularFiniteElement,
+  form_function.makeFormFunctions( 1, [ [0,0], [1,0], [0,1] ] ),
+  dimensions = 2 )
+
+
+
+
+
+class tTwoDimensionalQuadraticTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
+  def visualizationData( self, solution_vector ):
+    return visualization.tVisualizationData( 
+	self.Nodes, 
+	[ solution_vector[ n ] for n in self.NodeNumbers ],
+	[ (0,3,5), (3,1,4), (3,4,5), (5,4,2) ] )
+
+addFormFunctions( 
+  tTwoDimensionalQuadraticTriangularFiniteElement,
+  form_function.makeFormFunctions( 2, 
+    [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ] ),
+  dimensions = 2 )
+
+
+
+
+# distorted elements ----------------------------------------------------------
+class tDistortedTwoDimensionalTriangularFiniteElement( tFiniteElement ):
+  # initialization ------------------------------------------------------------
+  def __init__( self, nodes, distort_expressions, inverse_distort_expressions ):
+    tFiniteElement.__init__( self, nodes, dof_manager )
+    assert len( nodes ) == len( self.FormFunctions )
+
+    dimensions = 2
+    # create derivatives
+    self.DistortionDerivatives = []
+    for dim in range( dimensions ):
+      self.DistortionDerirvatives.append( [] )
+      grad = self.DistortionDerivatives[dim]
+      f = distort_expressions[dim]
+
+      for ddim in range( dimensions ):
+        pass
+
+
+
+
+
+
+
+    # FIXME: verify validity
+    
+  # internal helpers ----------------------------------------------------------
+  def transformToReal( self, point ):
+    return num.matrixmultiply( self.TransformMatrix, point ) + self.Origin
+  def transformToUnit( self, point ):
+    return num.matrixmultiply( self.TransformMatrixInverse, point - self.Origin )
+
+  # external tools ------------------------------------------------------------
+  def boundingBox( self ):
+    # FIXME: this might be wrong
+    coords = [ node.coordinates() for node in self.Nodes ]
+    return num.minimum.reduce( coords ), num.maximum.reduce( coords )
+
+  def isInElement( self, point ):
+    # convert point to barycentric
+    point_minus_origin = point - self.Nodes[0].coordinates()
+    barycentric = num.matrixmultiply( self.TransformMatrixInverse, point_minus_origin )
+    # check if point is in
+    return num.alltrue( barycentric >= 0 ) and sum( barycentric ) < 1
+
+  # tFiniteElement interface --------------------------------------------------
+  def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
     include_x = 0
     include_y = 0
 
@@ -190,11 +349,11 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
     fdxr = None;fdyr = None;fdxc = None;fdyc = None;
 
-    jacobian = 1/(2*self.Area)
+    jacobian_det = 1/(2*self.Area)
 
     if which_derivative == "both":
       def functionInIntegral( point ):
-	return jacobian * ( \
+	return jacobian_det * ( \
 	  ( a00 * fdxr( point ) + a01 * fdyr( point ) ) * \
 	  ( a00 * fdxc( point ) + a01 * fdyc( point ) ) + \
 	  ( a10 * fdxr( point ) + a11 * fdyr( point ) ) * \
@@ -219,18 +378,19 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     builder.add( influence_matrix, self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
-    builder.add( self.Area * self.FormFunctionCrossIntegrals, 
+    jacobian_det = self.Area * 2
+    builder.add( jacobian_det * self.FormFunctionCrossIntegrals, 
 	self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunction( self, builder, f ):
     n = self.FormFunctionCount
     influences = num.zeros( (n,), num.Float )
 
-    jacobian = self.Area * 2
+    jacobian_det = self.Area * 2
 
     for i in range( n ):
       ff = self.FormFunctions[i]
-      influences[i] = jacobian * integration.integrateFunctionOnUnitTriangle( 
+      influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle( 
         lambda point: f( self.transformToReal( point ) ) * ff(  point ) )
 
     builder.add( influences, self.NodeNumbers )
@@ -247,24 +407,37 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
 
 
-
+# distorted two-dimensional triangular finite elements ------------------------
 class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
-  FormFunctionExpressions = form_function.makeFormFunctions( 1, [ [0,0], [1,0], [0,1] ] )
-tTwoDimensionalLinearTriangularFiniteElement.compileFormFunctions()
+  def visualizationData( self, solution_vector ):
+    return visualization.tVisualizationData( 
+	self.Nodes, 
+	[ solution_vector[ n ] for n in self.NodeNumbers ],
+	[ (0,1,2) ] )
+
+addFormFunctions( 
+  tTwoDimensionalLinearTriangularFiniteElement,
+  form_function.makeFormFunctions( 1, [ [0,0], [1,0], [0,1] ] ),
+  dimensions = 2 )
 
 
 
 
 
 class tTwoDimensionalQuadraticTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
-  FormFunctionExpressions = form_function.makeFormFunctions( 2, 
-    [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ] )
-
   def visualizationData( self, solution_vector ):
     return visualization.tVisualizationData( 
 	self.Nodes, 
 	[ solution_vector[ n ] for n in self.NodeNumbers ],
 	[ (0,3,5), (3,1,4), (3,4,5), (5,4,2) ] )
 
-tTwoDimensionalQuadraticTriangularFiniteElement.compileFormFunctions()
+addFormFunctions( 
+  tTwoDimensionalQuadraticTriangularFiniteElement,
+  form_function.makeFormFunctions( 2, 
+    [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ] ),
+  dimensions = 2 )
+
+
+
+
 

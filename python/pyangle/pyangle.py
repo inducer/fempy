@@ -9,6 +9,8 @@ def triangulate( in_parameters, verbose = False,
   opts = "pzq"
   if verbose:
     opts += "V"
+  else:
+    opts += "Q"
   if refinement_func is not None:
     opts += "u"
   out_parameters = tTriangulationParameters()
@@ -47,4 +49,21 @@ def triangulateArea( points, hole_starts = [], verbose = False, refinement_func 
   return triangulate( input_p, verbose, refinement_func )
 
 
+
+
+def writeGnuplotMesh( gnuplot_file, out_p ):
+  gp_file = file( gnuplot_file, "w" )
+
+  pts = out_p.Points
+  tris = out_p.Triangles
+
+  for tri in range( out_p.Triangles.size() ):
+    for pt in range( 0, 3 ):
+      gp_file.write( "%f %f\n" % (
+        pts.getSub( tris.getSub( tri, pt ), 0 ),
+        pts.getSub( tris.getSub( tri, pt ), 1 ) ) )
+    gp_file.write( "%f %f\n" % (
+      pts.getSub( tris.getSub( tri, 0 ), 0 ),
+      pts.getSub( tris.getSub( tri, 0 ), 1 ) ) )
+    gp_file.write( "\n" )
 

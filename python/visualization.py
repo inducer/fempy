@@ -29,7 +29,7 @@ class tVisualizationData:
 
   def __init__( self, nodes, node_values, triangles,
       extra_node_coordinates = [], extra_node_values = [] ):
-    self.Nodes = nodes,
+    self.Nodes = nodes
     self.NodeValues = node_values
     self.Triangles = triangles
     self.ExtraNodeCoordinates = extra_node_coordinates
@@ -67,9 +67,9 @@ def compileInfo( dof_manager, elements, solution ):
       index -= 1
 
     for na,nb,nc in data.Triangles:
-      tris.append( local_nodes[na], local_nodes[nb], local_nodes[nc] )
+      tris.append( (local_nodes[na], local_nodes[nb], local_nodes[nc]) )
 
-    return nodes, values, tris
+  return nodes, values, tris
 
 
 
@@ -148,29 +148,19 @@ def writeMatlabFile( name, dof_manager, elements, solution ):
 	    m_file.write( "%f" % data[ i,j ] )
     m_file.write( "];\n" )
 
-  writeMatlabVector( "solution", solution )
+  nodes,values,triangles = compileInfo( dof_manager, elements, solution )
 
-  dof_count = dof_manager.countDegreesOfFreedom()
-  
-  x = num.zeros( (dof_count,), num.Float )
-  y = num.zeros( (dof_count,), num.Float )
+  coords = num.array( nodes )
 
-  for i in range( 0, dof_count ):
-    coords = dof_manager.getDegreeOfFreedomIdentifier( i ).coordinates()
-    x[ i ] = coords[ 0 ]
-    y[ i ] = coords[ 1 ]
+  x = coords[:,0]
+  y = coords[:,1]
 
   writeMatlabVector( "x", x )
   writeMatlabVector( "y", y )
 	  
-  tris = num.zeros( (len(elements),3), num.Float )
+  writeMatlabVector( "solution", num.array( values ) )
 
-  el_index = 0
-  for el in elements:
-    tris[ el_index ] = num.array( el.nodeNumbers() )
-    el_index += 1
-
-  tris += num.ones( tris.shape, num.Float )
+  tris = num.array( [ [a+1,b+1,c+1] for (a,b,c) in triangles ] )
 
   writeMatlabMatrix( "tris", tris ) 
 

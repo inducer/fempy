@@ -2,8 +2,8 @@
 set -e 
 
 BOOST_PATH=$HOME/diplomarbeit/python-packages/boost
-PYTHON_INCLUDE_PATH=~/pool/include/python2.3
 PYTHON_INCLUDE_PATH=/usr/include/python2.3
+PYTHON_INCLUDE_PATH=~/pool/include/python2.3
 
 function run()
 {
