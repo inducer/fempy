@@ -99,13 +99,13 @@ def getCircle(radius, segments):
 
 def getUnitCellGeometry(radius, segments = 50):
   return \
-    [(radius/2.,0)] + getParallelogram(radius) + [(radius/2.,0)], \
+    [(radius/2.,0)] + getParallelogram(radius), \
     getCircle(radius * 0.3, segments)
 
 
 
 
-def adaptiveDemo(expr):
+def adaptiveDemo(expr, mesh, max_iterations = 10):
   # prepare and compile solution functions ------------------------------------
   rhs = expression.simplify(expression.laplace(expr, ["0", "1"]))
   rhs_c = expression.compileScalarField(rhs)
@@ -117,8 +117,6 @@ def adaptiveDemo(expr):
   # build geometry ------------------------------------------------------------
   job = tJob("geometry")
   
-  boundary, inner_boundary = getUnitCellGeometry(radius = 2)
-  mesh = tTwoDimensionalShapedMesh(boundary, inner_boundary)
   mesh.generate()
   job.done()
 
@@ -153,19 +151,21 @@ def adaptiveDemo(expr):
   def decideOnRefinement((error_estimator, max_error), element):
     return error_estimator(element) >= max_error
 
-  new_mesh, solution_vector = solveAdaptively(mesh, solve, decideOnRefinement, 10)
+  new_mesh, solution_vector = solveAdaptively(mesh, solve, decideOnRefinement, max_iterations)
   print "Converged with order:", eoc_rec.estimateOrderOfConvergence()[0,1]
   eoc_rec.writeGnuplotFile(",,convergence.data")
 
-  vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
-  #vis.writeGnuplotFile("+result.dat", dof_manager, elements, solution)
-  #vis.writeVtkFile("+result.vtk", dof_manager, elements, solution)
+  #vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  #vis.writeGnuplotFile("+result.dat", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  vis.writeVtkFile("+result.vtk", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
 
 
 
 
 sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
-adaptiveDemo(sol)
+boundary, inner_boundary = getUnitCellGeometry(radius = 2)
+mesh = tTwoDimensionalSimplicalMesh(boundary, inner_boundary)
+adaptiveDemo(sol, mesh, max_iterations = 2)
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")

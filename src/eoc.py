@@ -17,6 +17,9 @@ def estimateOrderOfConvergence(abscissae, errors):
   """
 
   assert len(abscissae) == len(errors)
+  if len(abscissae) <= 1:
+    raise RuntimeError, "Need more than one value to guess order of convergence."
+
   coefficients = mtools.fit_polynomial(num.log10(abscissae), num.log10(errors), 1)
   return 10**coefficients[0], -coefficients[1]
 

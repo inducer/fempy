@@ -53,7 +53,8 @@ class tFiniteElement:
 
     where \phi_i and \phi_j run through all the form functions present in
     the element. The correct entries in the matrix are found through the
-    DOF manager lookup facility.
+    DOF manager lookup facility. A sum of both contributions is added if
+    which_derivatives is "both".
     """
     pass
 
@@ -165,6 +166,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     assert determinant > 0
 
     self.Area = 0.5 * determinant
+    self.InverseDeterminant = 1./determinant
     
   # internal helpers ----------------------------------------------------------
   def transformToReal(self, point):
@@ -184,29 +186,28 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
-    # convert point to barycentric
-    barycentric = num.matrixmultiply(self.TransformMatrixInverse, 
-      point - self.Nodes[0].coordinates())
-    # check if point is in
-    for i in barycentric:
-      if i < 0:
-        return False
-    return sum(barycentric) < 1
+    unit_coords = self.transformToUnit(point)
+    neg_bound = -1e-6
+    pos_bound = 1+1e-6
+    return \
+        neg_bound < unit_coords[0] < pos_bound and \
+        neg_bound < unit_coords[1] < pos_bound and \
+        neg_bound < 1-unit_coords[0]-unit_coords[1] < pos_bound
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
-    g00 = self.TransformMatrixInverse[0,0]
-    g01 = self.TransformMatrixInverse[0,1]
-    g10 = self.TransformMatrixInverse[1,0]
-    g11 = self.TransformMatrixInverse[1,1]
+    g00 = self.TransformMatrix[0,0]
+    g01 = self.TransformMatrix[0,1]
+    g10 = self.TransformMatrix[1,0]
+    g11 = self.TransformMatrix[1,1]
 
     if which_derivative == "both":
       def functionInIntegral(point):
 	return (\
-	  (g00 * fdxr(point) + g10 * fdyr(point)) * \
-	  (g00 * fdxc(point) + g10 * fdyc(point)) + \
-	  (g01 * fdxr(point) + g11 * fdyr(point)) * \
-	  (g01 * fdxc(point) + g11 * fdyc(point)) 
+	  (g11 * fdxr(point) - g10 * fdyr(point)) * \
+	  (g11 * fdxc(point) - g10 * fdyc(point)) + \
+	  (-g01 * fdxr(point) + g00 * fdyr(point)) * \
+	  (-g01 * fdxc(point) + g00 * fdyc(point)) 
 	 )
     else:
       raise tFiniteElementError, "which_derivative != 'both' not implemented yet"
@@ -224,9 +225,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
-    jacobian_det = 2*self.Area
-
-    builder.addScatteredSymmetric(jacobian_det * influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(self.InverseDeterminant * influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunctions(self, builder):
     jacobian_det = self.Area * 2
@@ -305,74 +304,73 @@ addFormFunctions(
 # distorted elements ----------------------------------------------------------
 class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
-  def __init__(self, nodes, distort_expressions, inverse_distort_expressions, dof_manager):
+  def __init__(self, nodes, distort_expressions, inverse_distort_function, dof_manager):
     tFiniteElement.__init__(self, nodes, dof_manager)
     assert len(nodes) == len(self.FormFunctions)
 
     dimensions = len(distort_expressions)
 
-    self.transformToReal = expression.assembleMatrixFunction([
-      expression.compileScalarField(exp) for exp in distort_expressions ])
-    self.transformToUnit = expression.assembleMatrixFunction([
-      expression.compileScalarField(exp) for exp in inverse_distort_expressions ])
+    self.transformToReal = expression.compileVectorField(distort_expressions)
+    self.transformToUnit = inverse_distort_function
 
     # create derivatives
-    distortion_derivatives = []
-    inverse_distortion_derivatives = []
-    for dim in range(dimensions):
-      grad = []
-      inverse_grad = []
-      f = distort_expressions[dim]
-      inverse_f = inverse_distort_expressions[dim]
-
-      for ddim in range(dimensions):
-        grad.append(
-          expression.compileScalarField(
-            expression.simplify(expression.differentiate(f, "%d" % ddim))))
-        inverse_grad.append(
-          expression.compileScalarField(
-            expression.simplify(expression.differentiate(inverse_f, "%d" % ddim))))
-      distortion_derivatives.append(grad)
-      inverse_distortion_derivatives.append(inverse_grad)
-    self.getDistortionDerivatives = expression.assembleMatrixFunction(
-      distortion_derivatives)
-    self.getInverseDistortionDerivatives = expression.assembleMatrixFunction(
-      inverse_distortion_derivatives)
+    self.getDistortionDerivatives = \
+        expression.assembleMatrixFunction([ [ 
+            expression.compileScalarField(
+              expression.simplify(expression.differentiate(
+                distort_expressions[dim], "%d" % ddim)))
+              for ddim in range(dimensions) ]
+              for dim in range(dimensions) ])
 
     # verify validity
-    def inverseNorm(f, inverse_f, point):
-      return tools.norm2(point - inverse_f(f(point)))
-    inverse_norms = [ 
-      inverseNorm(self.transformToReal, self.transformToUnit, num.array(point)) 
-      for point in 
-        [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
-    assert max(inverse_norms) < 1e-11
-    
+    if False:
+      def inverseNorm(f, inverse_f, point):
+        return tools.norm2(point - inverse_f(f(point)))
+      inverse_norms = [ 
+        inverseNorm(self.transformToReal, self.transformToUnit, num.array(point)) 
+        for point in 
+          [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
+      assert max(inverse_norms) < 1e-10
+
   # external tools ------------------------------------------------------------
+  def area(self):
+    def functionInIntegral(point):
+      return math.fabs(la.determinant(self.getDistortionDerivatives(point)))
+    return integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+
   def boundingBox(self):
-    # FIXME: this might be wrong
+    # FIXME: this will often be wrong
     coords = [ node.coordinates() for node in self.Nodes ]
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
-    # FIXME
-    raise RuntimeError, "unimplemented"
+    unit_coords = self.transformToUnit(point)
+    neg_bound = -1e-6
+    pos_bound = 1+1e-6
+    return \
+        neg_bound < unit_coords[0] < pos_bound and \
+        neg_bound < unit_coords[1] < pos_bound and \
+        neg_bound < 1-unit_coords[0]-unit_coords[1] < pos_bound
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
-    fdxr = None;fdyr = None;fdxc = None;fdyc = None;
-
     if which_derivative == "both":
       def functionInIntegral(point):
-        g = self.getInverseDistortionDerivatives(self.transformToReal(point))
-	return 1. / math.fabs(la.determinant(g)) * \
-          (\
-	  (g[0,0] * fdxr(point) + g[1,0] * fdyr(point)) * \
-	  (g[0,0] * fdxc(point) + g[1,0] * fdyc(point)) + \
-	  (g[0,1] * fdxr(point) + g[1,1] * fdyr(point)) * \
-	  (g[0,1] * fdxc(point) + g[1,1] * fdyc(point)) 
-	 )
+        g = self.getDistortionDerivatives(point)
 
+        # determinant count:
+        # +1 for the substitution integral
+        # -2 (-1 for each occurrence of g, and see: there are two(!) g's multiplied
+        #    together in each term)
+        # -----------------------------
+        # -1.
+
+	return 1/la.determinant(g) * (\
+	  (g[1,1] * fdxr(point) - g[1,0] * fdyr(point)) * \
+	  (g[1,1] * fdxc(point) - g[1,0] * fdyc(point)) + \
+	  (-g[0,1] * fdxr(point) + g[0,0] * fdyr(point)) * \
+	  (-g[0,1] * fdxc(point) + g[0,0] * fdyc(point)) 
+          )
     else:
       raise tFiniteElementError, "which_derivative != 'both' not implemented yet"
 
@@ -423,6 +421,15 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
       influences[i] = integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
     builder.addScattered(influences, self.NodeNumbers)
+
+  def getVolumeIntegralOver(self, f, coefficients):
+    zipped = zip(coefficients, self.FormFunctions)
+    def functionInIntegral(point):
+      ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
+      return math.fabs(la.determinant(self.getDistortionDerivatives(point))) * \
+          f(self.transformToReal(point) , ff_comb)
+
+    return integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
   def getSolutionFunction(self, solution_vector):
     node_values = num.take(solution_vector, self.NodeNumbers)

@@ -7,6 +7,16 @@ import math
 
 
 
+def ispos(x):
+  value = ev(x)
+  if value > 0:
+    return 1
+  else:
+    return 0
+
+
+
+
 def evaluate(expression, variable_assignments = {}):
   def ev(expression):
     return pattern.switch(ruleset, expression)
@@ -18,10 +28,41 @@ def evaluate(expression, variable_assignments = {}):
     ("/",VAR,VAR), lambda x,y: ev(x)/ev(y),
     ("**",VAR,VAR), lambda x,y: ev(x)**ev(y),
     ("-",VAR) , lambda x: -ev(x),
-    ("sin",VAR), lambda x: math.sin(x),
-    ("cos",VAR), lambda x: math.cos(x),
-    ("tan",VAR), lambda x: math.tan(x),
+    ("sin",VAR), lambda x: math.sin(ev(x)),
+    ("cos",VAR), lambda x: math.cos(ev(x)),
+    ("tan",VAR), lambda x: math.tan(ev(x)),
+    ("ispos",VAR), lambda x: ispos(ev(x)),
     ("variable",VAR), lambda x: variable_assignments[x],
+    VAR, lambda x: x 
+  ]
+
+  return ev(expression)
+
+
+
+
+def substitute(expression, variable_assignments = {}):
+  def subs(expression):
+    return pattern.switch(ruleset, expression)
+
+  def substituteVariable(var_id):
+    try:
+      return variable_assignments[var_id]
+    except KeyError:
+      return ("variable", var_id)
+
+  ruleset = [
+    ("+",VAR,VAR), lambda x,y: ("+",subs(x),subs(y)),
+    ("-",VAR,VAR), lambda x,y: ("-",subs(x),subs(y)),
+    ("*",VAR,VAR), lambda x,y: ("*",subs(x),subs(y)),
+    ("/",VAR,VAR), lambda x,y: ("/",subs(x),subs(y)),
+    ("**",VAR,VAR), lambda x,y: ("**",subs(x),subs(y)),
+    ("-",VAR) , lambda x: ("-",subs(x)),
+    ("sin",VAR), lambda x: ("sin",subs(x)),
+    ("cos",VAR), lambda x: ("cos",subs(x)),
+    ("tan",VAR), lambda x: ("tan",subs(x)),
+    ("ispos",VAR), lambda x: ("ispos",subs(x)),
+    ("variable",VAR), substituteVariable,
     VAR, lambda x: x 
   ]
 
@@ -44,6 +85,7 @@ def isConstant(expression, variable_assignments = {}):
     ("sin",VAR), lambda x: isc(x),
     ("cos",VAR), lambda x: isc(x),
     ("tan",VAR), lambda x: isc(x),
+    ("ispos",VAR), lambda x: isc(x),
     ("variable",VAR), lambda x: False,
     VAR, lambda x: True
   ]
@@ -63,6 +105,9 @@ def differentiate(expression, variable):
     else:
       return 0
 
+  def ispos_diff(x):
+    raise RuntimeError, "ispos is not differentiable"
+
   ruleset = [
     ("+",VAR,VAR), lambda x,y: ("+", diff(x), diff(y)),
     ("-",VAR,VAR), lambda x,y: ("-", diff(x), diff(y)),
@@ -74,6 +119,7 @@ def differentiate(expression, variable):
     ("sin",VAR) , lambda x: ("*", diff(x), ("cos",x)),
     ("cos",VAR) , lambda x: ("*", ("-", diff(x)), ("sin",x)),
     ("tan",VAR) , lambda x: ("*", diff(x), ("+", 1, ("**", ("tan", x), 2))),
+    ("ispos",VAR) , ispos_diff,
     ("variable",VAR), diffVariable,
     VAR, lambda x: 0.
   ]
@@ -155,6 +201,7 @@ def simplify(expression):
     ("sin",VAR), lambda x: ("sin",simp(x)),
     ("cos",VAR), lambda x: ("cos",simp(x)),
     ("tan",VAR), lambda x: ("tan",simp(x)),
+    ("ispos",VAR), lambda x: ("ispos",simp(x)),
     ("variable",VAR), lambda x: ("variable",x),
     VAR, lambda x: x
   ]
@@ -186,6 +233,7 @@ def infixify(expression, variable_substitutions = {}):
     ("sin",VAR) , lambda x: "sin(%s)"  % pythonify(x),
     ("cos",VAR) , lambda x: "cos(%s)"  % pythonify(x),
     ("tan",VAR) , lambda x: "tan(%s)"  % pythonify(x),
+    ("ispos",VAR) , lambda x: "ispos(%s)"  % pythonify(x),
     ("variable",VAR), lambda x:"%s" % str(substitute(x)),
     VAR, lambda x: str(x)
   ]
@@ -218,6 +266,7 @@ def compile(expression, variable_substitutions = {}, variables = []):
     ("sin",VAR) , lambda x: "math.sin(%s)"  % pythonify(x),
     ("cos",VAR) , lambda x: "math.cos(%s)"  % pythonify(x),
     ("tan",VAR) , lambda x: "math.tan(%s)"  % pythonify(x),
+    ("ispos",VAR) , lambda x: "ispos(%s)"  % pythonify(x),
     ("variable",VAR), addVariable,
     VAR, lambda x: str(x)
   ]
@@ -248,15 +297,20 @@ def compileScalarField(expr, dimension = 2):
 
 
 
+def assembleVectorFunction(function_list):
+  return lambda x: num.array([ func(x) for func in function_list ])
+
+
+
+
 def assembleMatrixFunction(function_list):
-  if type(function_list[0]) == types.ListType:
-    def f(x):
-      return num.array([ [ func(x) for func in flist ] for flist in function_list ])
-    return f
-  else:
-    def f(x):
-      return num.array([ func(x) for func in function_list ])
-    return f
+  return lambda x: num.array([ [ func(x) for func in flist ] for flist in function_list ])
+
+
+
+
+def compileVectorField(expr_list, preimage_dim = 2):
+  return assembleVectorFunction([compileScalarField(expr) for expr in expr_list])
 
 
 
