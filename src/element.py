@@ -22,11 +22,13 @@ class tFiniteElementError(Exception):
 
 # tNode -----------------------------------------------------------------------
 class tNode:
-  def __init__(self, tag, number, coordinates = None, constraint_id = None):
+  def __init__(self, tag, number, coordinates = None, 
+               constraint_id = None, shape_section = None):
     self.Coordinates = coordinates
     self.Number = number
     self.Tag = tag
     self.ConstraintId = constraint_id
+    self.ShapeSection = shape_section
 
 
 
@@ -38,12 +40,14 @@ class tDOFManager:
     self._NumberToNode = []
     self._ConstrainedNodes = []
 
-  def registerNode(self, tag, coordinates = None, constraint_id = None):
+  def registerNode(self, tag, coordinates = None, 
+                   constraint_id = None,
+                   shape_section = None):
     try:
       return self._TagToNode[tag]
     except KeyError:
       new_number = len(self._NumberToNode)
-      node = tNode(tag, new_number, coordinates, constraint_id)
+      node = tNode(tag, new_number, coordinates, constraint_id, shape_section)
       self._TagToNode[tag] = node
       self._NumberToNode.append(node)
       if constraint_id:
@@ -64,6 +68,7 @@ class tDOFManager:
 
   def constrainedNodes(self):
     return self._ConstrainedNodes
+
 
 
 
@@ -225,17 +230,22 @@ class tInbetweenNode:
     try:
       return dof_manager.getNodeByTag(self._completeTag(nb.Tag, na.Tag))
     except RuntimeError:
-      # FIXME! (Corner triangles)
-      constraint_id = None
-      if na.ConstraintId == nb.ConstraintId:
-        constraint_id = na.ConstraintId
-
       coordinates = na.Coordinates + (nb.Coordinates-na.Coordinates) * \
                     float(self.Numerator) / \
                     float(self.Denominator)
+
+      shape_section = None
+      constraint_id = None
+      if na.ShapeSection is not None and \
+           na.ShapeSection == nb.ShapeSection and \
+           na.ShapeSection.containsPoint(coordinates):
+        shape_section = na.ShapeSection
+        constraint_id = shape_section.ConstraintId
+
       return dof_manager.registerNode(self._completeTag(na.Tag, nb.Tag),
                                       coordinates,
-                                      constraint_id
+                                      constraint_id,
+                                      shape_section
                                       )
 
 class tFormFunctionKit:

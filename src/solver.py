@@ -81,8 +81,8 @@ def solvePoisson(mesh, f, u_d = lambda x: 0, start_vector = None):
 
 
 def shiftAndInvertEigenproblem(sigma, s, m, 
-                               number_of_eigenvalues = 5, 
-                               number_of_arnoldi_vectors = 10,
+                               number_of_eigenvalues = 20, 
+                               number_of_arnoldi_vectors = 40,
                                tolerance = 1e-10,
                                max_iterations = 0):
 
@@ -109,62 +109,77 @@ def shiftAndInvertEigenproblem(sigma, s, m,
 
 
 
-def solveLaplaceEigenproblem(sigma, mesh, periodic_nodes,
-                             f = None, g = lambda x: 1.,
-                             typecode = num.Float):
-  """Solve the Poisson equation
+class tLaplacianEigenproblemSolver:
+  def __init__(self, mesh, f = None, g = lambda x: 1., typecode = num.Float):
+    """Solve the eigenproblem of the Laplace operator:
+    
+      laplace u + f * u = g * lambda * u.
+    
+    For the nodes marked with the constraint id "dirichlet",
+    a (boundary) condition of u = 0 is enforced.
+    """
 
-  laplace u + f * u = g * lambda * u 
+    self._Mesh = mesh
 
-  with u = 0 in nodes given in the list `dirichlet_nodes'. 
-  `periodic_nodes' is a list of tuples (node_a, node_b, factor),
-  such that a boundary condition of u(node_a) = factor * u(node_b)
-  will be forced.
-  """
+    dof_manager = self._Mesh.dofManager()
+    dof_count = len(dof_manager)
 
-  dof_manager = mesh.dofManager()
-  dof_count = len(dof_manager)
+    self._SBuilder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
+    self._MBuilder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
 
-  s_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
-  m_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
-
-  job = tJob("stiffness matrix")
-  for el in mesh.elements():
-    el.addVolumeIntegralOverDifferentiatedFormFunctions(s_builder)
-  job.done()
-
-  job = tJob("mass matrix")
-  for el in mesh.elements():
-    el.addVolumeIntegralOverFormFunctions(m_builder, g)
-  job.done()
-
-  if f is not None:
-    job = tJob("rhs")
-    for el in mesh.elements():
-      el.addVolumeIntegralOverFormFunctions(s_builder, f)
+    job = tJob("stiffness matrix")
+    for el in self._Mesh.elements():
+      el.addVolumeIntegralOverDifferentiatedFormFunctions(self._SBuilder)
     job.done()
 
-  job = tJob("bcs, dirichlet")
-  for node in filter(lambda node: node.ConstraintId == "dirichlet",
-                     dof_manager.constrainedNodes()):
-    i = dof_manager.getDegreeOfFreedomNumber(node)
-    s_builder.forceIdentityMap(i)
-    m_builder.matrix()[i] = 0
-    m_builder.matrix()[:,i] = 0
-  job.done()
+    job = tJob("mass matrix")
+    for el in self._Mesh.elements():
+      el.addVolumeIntegralOverFormFunctions(self._MBuilder, g)
+    job.done()
 
-  job = tJob("bcs, periodic")
-  for node_a, node_b, factor in periodic_nodes:
-    nr_a = node_a.Number
-    nr_b = node_b.Number
+    if f is not None:
+      job = tJob("rhs")
+      for el in self._Mesh.elements():
+        el.addVolumeIntegralOverFormFunctions(self._SBuilder, f)
+      job.done()
 
-    s_builder.forceIdentityMap(nr_a)
-    s_builder.matrix()[nr_a,nr_b] = -factor
-    m_builder.matrix()[nr_a] = 0
-    m_builder.matrix()[:,nr_a] = 0
-  job.done()
+    job = tJob("bcs, dirichlet")
+    for node in filter(lambda node: node.ConstraintId == "dirichlet",
+                       dof_manager.constrainedNodes()):
+      i = node.Number
+      self._SBuilder.matrix()[i] = 0
+      self._MBuilder.matrix()[i] = 0
+      self._MBuilder.matrix()[:,i] = 0
+    job.done()
 
-  s = s_builder.matrix()
-  m = m_builder.matrix()
+  def addPeriodicBoundaryConditions(self, periodicity_nodes):
+    """`periodicity_nodes' is a list of list of tuples (node_i, factor).
+    For each element ((n_1,alpha_1), ..., (n_k, alpha_k)) of the 
+    top-level list, the boundary condition
 
-  return shiftAndInvertEigenproblem(sigma, s, m)
+      alpha_1*u(n_1) = - alpha_2*u(n_2)... - alpha_k*u(n_k) = 0.
+
+    The boundary condition will be implented in n_1's row.
+
+    This method may be called more than once as long as only
+    the alpha_i change and the remaining structure of 
+    `periodicity_nodes' remains the same.
+    """
+    job = tJob("bcs, periodic")
+    for condition in periodicity_nodes:
+      main_node, main_factor = condition[0]
+
+      # clear out s and m
+      self._SBuilder.matrix()[main_node.Number] = 0 
+      self._SBuilder.matrix()[main_node.Number, main_node.Number] = 1
+      self._MBuilder.matrix()[main_node.Number] = 0
+      self._MBuilder.matrix()[:,main_node.Number] = 0
+
+      for node, factor in condition[1:]:
+        self._SBuilder.matrix()[main_node.Number,node.Number] = factor / main_factor
+    job.done()
+
+  def solve(self, sigma):
+    return shiftAndInvertEigenproblem(sigma, 
+                                      self._SBuilder.matrix(), 
+                                      self._MBuilder.matrix())

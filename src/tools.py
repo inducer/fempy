@@ -127,7 +127,7 @@ def partition(criterion, list):
 
 
 
-def indices_and(list):
+def indexAnd(list):
   return zip(range(len(list)), list)
 
 
@@ -136,17 +136,18 @@ def indices_and(list):
 def distanceToLine(start_point, direction, point):
   # Ansatz: start_point + alpha * direction 
   # <start_point + alpha * direction - point, direction> = 0!
-  alpha = - num.innerproduct(start_point - point, direction)/tools.norm2squared(direction)
+  alpha = - num.innerproduct(start_point - point, direction) / \
+          norm2squared(direction)
   foot_point = start_point + alpha * direction
   return norm2(point - foot_point), alpha
 
 
 
 
-def angleBetweenVectors(vec1, vec2):
-  return math.acos(math.fabs(num.innerproduct(vec1, vec2) \
-                             / norm2(vec1) \
-                             / norm2(vec2)))
+def angleCosineBetweenVectors(vec1, vec2):
+  return num.innerproduct(vec1, vec2) \
+         / norm2(vec1) \
+         / norm2(vec2)
 
 
 
@@ -164,7 +165,7 @@ class tFunctionValueCache:
       self.ResultMap[arg] = result
       return result
 
-
+    
 
 
 def sumOver(function, arguments):
@@ -175,4 +176,19 @@ def sumOver(function, arguments):
 
 
 
+
+def interpolateVectorList(vectors, inbetween_points):
+  if len(vectors) == 0:
+    return []
+
+  result = [vectors[0]]
+  last_vector = vectors[0]
+  for vector in vectors[1:]:
+    for i in range(inbetween_points):
+      result.append(last_vector + (vector-last_vector) \
+                    * float(i+1) \
+                    / float(inbetween_points+1))
+    result.append(vector)
+    last_vector = vector
+  return result
 

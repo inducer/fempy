@@ -128,10 +128,41 @@ class tShapeGuide:
   def evaluate(self, non_deform_coord):
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
 
+  def containsPoint(self, point, relative_threshold):
+    a,b = self.Interval
+    return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
+               point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
+
+
+
+
 class tShapeSection:
+  """Describes a closed polygon."""
   def __init__(self, shape_guide_list, constraint_id):
     self.ShapeGuideList = shape_guide_list
     self.ConstraintId = constraint_id
+
+  def containsPoint(self, point, relative_threshold = 1e-10):
+    my_shape_guide_list = self.ShapeGuideList
+    # if the last element is just a point, explicitly close the
+    # polygon
+    if not isinstance(self.ShapeGuideList[-1], tShapeGuide):
+      my_shape_guide_list = self.ShapeGuideList[:] + \
+                            [self.ShapeGuideList[0]]
+
+    last_point = my_shape_guide_list[0]
+    for i in my_shape_guide_list[1:]:
+      if isinstance(i, tShapeGuide):
+        if i.containsPoint(point, relative_threshold):
+          return True
+        a,b = i.Interval
+        last_point = i.evaluate(b)
+      else:
+        dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
+        if -relative_threshold <= alpha <= 1+relative_threshold and \
+           dtl <= tools.norm2(i-last_point) * relative_threshold:
+          return True
+        last_point = i
 
 
 
@@ -185,7 +216,7 @@ class _tPyangleMesh(tMesh):
       section = self.findShapeSectionByNumber(marker)
 
       constraint_id = None
-      if guide:
+      if section:
         constraint_id = section.ConstraintId
 
       if isinstance(guide, tShapeGuide):
@@ -194,7 +225,7 @@ class _tPyangleMesh(tMesh):
 
       self.DOFManager.registerNode(no,
                                    num.array([pts.getSub(no, 0), pts.getSub(no, 1)]),
-                                   constraint_id)
+                                   constraint_id, section)
 
     pyangle.writeGnuplotMesh(",,mesh.data", out_p)
 

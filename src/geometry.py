@@ -1,5 +1,6 @@
 import math
 import fempy.mesh as mesh
+import pylinear.matrices as num
 
 
 
@@ -15,7 +16,11 @@ def getParallelogram(edge_length = 1, x_skew = 0, y_skew = 0):
   a = edge_length / 2.
   xs = x_skew / 2.
   ys = y_skew / 2.
-  return [(a-xs,-a+ys), (a+xs,a+ys), (-a+xs,a-ys), (-a-xs,-a-ys)]
+  return [
+    num.array([a-xs,-a+ys]), 
+    num.array([a+xs,a+ys]), 
+    num.array([-a+xs,a-ys]), 
+    num.array([-a-xs,-a-ys])]
 
 def getCircle(radius, use_exact = True):
   sqrt2_inv = math.sqrt(2)/2 * radius
