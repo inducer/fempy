@@ -93,10 +93,12 @@ class tPyLinearMatrixBuilder(tMatrixBuilder):
     return self.Matrix[:,i]
 
   def addScattered(self, small_matrix, small_matrix_rows, small_matrix_columns):
-    self.Matrix.addScattered(small_matrix_rows, small_matrix_columns, small_matrix)
+    self.Matrix.addScattered(small_matrix_rows, small_matrix_columns, 
+                             num.asarray(small_matrix, self.Matrix.typecode()))
 
   def addScatteredSymmetric(self, small_matrix, small_matrix_rows):
-    self.Matrix.addScatteredSymmetric(small_matrix_rows, small_matrix)
+    self.Matrix.addScatteredSymmetric(small_matrix_rows, 
+                                      num.asarray(small_matrix, self.Matrix.typecode()))
 
 
 

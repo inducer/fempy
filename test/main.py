@@ -128,6 +128,13 @@ def getAnnulusGeometry(outer_radius, inner_radius, use_exact = True):
 
 
 
+def visualize(mesh, vector):
+  #vis.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), vector)
+  #vis.writeGnuplotFile(",,result.dat", mesh.dofManager(), mesh.elements(), vector)
+  vis.writeVtkFile(",,result.vtk", mesh.dofManager(), mesh.elements(), vector)
+
+
+
 def adaptiveDemo(expr, mesh, max_iterations = 10):
   # prepare and compile solution functions ------------------------------------
   rhs = expression.simplify(expression.laplace(expr, ["0", "1"]))
@@ -192,9 +199,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   eoc_rec.writeGnuplotFile(",,convergence.data")
 
-  #vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
-  #vis.writeGnuplotFile("+result.dat", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
-  vis.writeVtkFile("+result.vtk", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  visualize(new_mesh, solution_vector)
 
 
 
@@ -204,8 +209,6 @@ def unitCellDemo(mesh, epsilon, sigma, k):
   mesh.generate()
   job.done()
 
-  bnodes = mesh.boundaryNodes()
-
   def distanceToLine(start_point, direction, point):
     # Ansatz: start_point + alpha * direction 
     # <start_point + alpha * direction - point, direction> = 0!
@@ -213,40 +216,74 @@ def unitCellDemo(mesh, epsilon, sigma, k):
     foot_point = start_point + alpha * direction
     return tools.norm2(point - foot_point), alpha
 
+  boundaries = [[-0.5, 0.5], [-0.5,0.5]]
+  def isOnSameBoundary(point1, point2):
+    n, = point1.shape
+    for i in range(n):
+      if point1[i] in boundaries[i] and point2[i] == point1[i]:
+        return True
+    return False
+
   job = tJob("periodicity")
   periodic_nodes = []
   thresh = 1e-5
-  while bnodes:
-    my_node = bnodes[0]
+  bnodes = mesh.boundaryNodes()
+
+  pairs = []
+  for index, node in zip(range(len(bnodes)), bnodes):
+    without_this = bnodes[index+1:]
 
     nodes_with_distances = tools.decorate(
-      lambda node: distanceToLine(my_node.coordinates(), k, node.coordinates())[0],
-      bnodes[1:])
-    close_nodes, far_away_nodes = tools.partition(lambda (node, dist): dist < thresh, nodes_with_distances)
+      lambda other_node: distanceToLine(node.coordinates(), k, other_node.coordinates())[0],
+      without_this)
+    nodes_with_distances.sort(lambda (node1, dist1), (node2, dist2): cmp(dist1, dist2))
+    
+    taken = 0 
+    for other_node, dist in nodes_with_distances:
+      if dist > thresh and taken >= 5:
+        break
+      pairs.append((node, other_node, dist))
 
-    if close_nodes:
-      bnodes = map(lambda (node, dist): node, far_away_nodes)
-      tagged_nodes = map(lambda (node, dist): node, close_nodes)
+  pairs.sort(lambda (node1a, node1b, dist1), (node2a, node2b, dist2): cmp(dist1, dist2))
+
+  unconnected = tReference(len(bnodes))
+  connections = {}
+  
+  def connect(node_a,node_b):
+    if node_a not in connections:
+      unconnected.set(unconnected.get() - 1)
+      connections[node_a] = [node_b]
     else:
-      nodes_with_distances.sort(lambda (node1, dist1), (node2, dist2): cmp(dist1, dist2))
-      tagged_nodes = [nodes_with_distances[0][0]]
-      bnodes = map(lambda (node, dist): node, nodes_with_distances[1:])
+      connections[node_a].append(node_b)
+    if node_b not in connections:
+      unconnected.set(unconnected.get() - 1)
+      connections[node_b] = [node_a]
+    else:
+      connections[node_b].append(node_a)
 
-    for tagged_node in tagged_nodes:
-      dist = num.innerproduct(tagged_node.coordinates()-my_node.coordinates(),k)
-      periodic_nodes.append((my_node, tagged_node, cmath.exp(1j * dist)))
-  job.done()
+  pairs_index = 0
+  while unconnected.get() > 0:
+    node_a, node_b, dist = pairs[pairs_index]
+    connect(node_a, node_b)
+
+    k_dist = num.innerproduct(node_a.coordinates()-node_b.coordinates(),k)
+    periodic_nodes.append((node_a, node_b, cmath.exp(1j * k_dist)))
+    pairs_index += 1
 
   connections_file = file(",,connections.data", "w")
   for a,b,factor in periodic_nodes:
     connections_file.write("%f\t%f\n" % (a.coordinates()[0], a.coordinates()[1]))
     connections_file.write("%f\t%f\n" % (b.coordinates()[0], b.coordinates()[1]))
     connections_file.write("\n")
+  job.done()
 
-  raw_input()
+  results = solveLaplaceEigenproblem(sigma, mesh, [], periodic_nodes, g = epsilon,
+                                     typecode = num.Complex)
 
-  solver.solveLaplaceEigenproblem(sigma, mesh, [], periodic_nodes, g = epsilon,
-                                  typecode = num.Complex)
+  for val, vec in zip(results.RitzValues, results.RitzVectors):
+    print val
+    visualize(mesh, num.real(vec))
+    raw_input()
 
 
 
@@ -260,7 +297,9 @@ def runPoissonDemo():
 
 
 def runEigenDemo():
-  mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 1, inner_factor = 0.3))
+  mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 1, 
+                                                 inner_factor = 0.3,
+                                                 use_exact = False))
   def epsilon(x):
     if tools.norm2(x) < 0.3:
       return 11
@@ -269,7 +308,7 @@ def runEigenDemo():
 
   sigma = 0.9
   
-  unitCellDemo(mesh, epsilon, sigma, num.array([1,1]))
+  unitCellDemo(mesh, epsilon, sigma, num.array([1,0.5]))
 
 
 

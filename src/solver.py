@@ -82,7 +82,7 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
 def shiftAndInvertEigenproblem(sigma, s, m, 
                                number_of_eigenvalues = 5, 
                                number_of_arnoldi_vectors = 10,
-                               tolearnce = 1e-10,
+                               tolerance = 1e-10,
                                max_iterations = 0):
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
@@ -90,14 +90,14 @@ def shiftAndInvertEigenproblem(sigma, s, m,
 
   m_op = algo.makeMatrixOperator(compiled_m)
 
-  job = stopwatch.tJob("shift matrix")
-  shifted_matrix = num.asarray(s - sigma * m, typecode, num.SparseExecuteMatrix)
+  job = tJob("shift matrix")
+  shifted_matrix = num.asarray(s - sigma * m, s.typecode(), num.SparseExecuteMatrix)
   shifted_matrix_invop = algo.makeUMFPACKMatrixOperator(shifted_matrix)
   job.done()
 
-  op = algo.composeMatrixOperator(shifted_matrix_invop, m_op)
+  op = algo.composeMatrixOperators(shifted_matrix_invop, m_op)
 
-  job = stopwatch.tJob("arpack rci")
+  job = tJob("arpack rci")
   results = algo.runArpack(op, m_op, algo.SHIFT_AND_INVERT_GENERALIZED,
                            sigma, number_of_eigenvalues, number_of_arnoldi_vectors,
                            algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)

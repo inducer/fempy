@@ -286,7 +286,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
-    builder.addScatteredSymmetric(jacobian_det * self.FormFunctionCrossIntegrals, 
+    builder.addScatteredSymmetric(jacobian_det * influence_matrix, 
 	self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):

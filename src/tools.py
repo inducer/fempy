@@ -123,3 +123,9 @@ def partition(criterion, list):
     else:
       part_false.append(i)
   return part_true, part_false
+
+
+
+
+def indices_and(list):
+  return zip(range(len(list)), list)
