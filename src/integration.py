@@ -92,3 +92,22 @@ def integrateOnUnitInterval4(f):
   
   It uses a Gaussian quadrature of order 4."""
   return _doIntegration(INTEGRATION_LINE_LOCATIONS_4, INTEGRATION_LINE_WEIGHTS_4, f)
+
+
+
+
+def integrateOnTwoDimensionalGrid(grid, f):
+  dims = grid.subdivisions()
+  assert len(dims) == 2
+  dim1 = dims[0]
+  dim2 = dims[1]
+  result = 0.
+  for i in range(1,dim1):
+    for j in range(1,dim2):
+      result += f((i,j))
+  for i in range(1,dim1):
+    result += .5 * (f((i,0))+f((i,dim2)))
+  for j in range(1,dim2):
+    result += .5 * (f((0,j))+f((dim1,j)))
+  result += .25 * (f((0,0)) + f((dim1,0)) + f((0,dim2)) + f((dim1,dim2)))
+  return result

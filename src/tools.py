@@ -204,19 +204,54 @@ def interpolateVectorList(vectors, inbetween_points):
 
 
 
-def getGrid(origin, grid_vectors, subdivisions):
-  last_result = [origin]
-  for gv, subdivs in zip(grid_vectors, subdivisions):
-    result = []
-    for vector in last_result:
-      for j in range(subdivs+1):
-        result.append(vector + float(j)/float(subdivs) * gv)
-    last_result = result
-  return last_result
+def product(list):
+  return reduce(lambda x,y: x*y, list, 1)
 
 
 
 
+class tLexicographicSequencer:
+  def __init__(self, container, dimensions):
+    self._Container = container
+    self._Dimensions = dimensions
 
+  def __len__(self):
+    return product(self._Dimensions)
+
+  def translateSingleIndex(self, index):
+    indices = []
+    remaining_size = len(self)
+    if not (0 <= index < remaining_size):
+      raise IndexError, "invalid subscript to grid object"
+    for i,sz in indexAnd(self._Dimensions):
+      remaining_size /= sz
+      quotient, index = divmod(index, remaining_size)
+      indices.append(quotient)
+    return tuple(indices)
+
+  def getAllIndices(self):
+    return [self.translateSingleIndex(i) for i in range(len(self))]
+
+  def __getitem__(self, index):
+    return self._Container[self.translateSingleIndex(index)]
 
   
+
+
+class tGrid:
+  def __init__(self, origin, grid_vectors, subdivisions):
+    self._Origin = origin
+    self._GridVectors = grid_vectors
+    self._Subdivisions = subdivisions
+
+  def subdivisions(self):
+    return self._Subdivisions
+
+  def __getitem__(self, index):
+    result = self._Origin.copy()
+    for i, gv, subdivs in zip(index, self._GridVectors, self._Subdivisions):
+      result += (float(i)/float(subdivs)) * gv
+    return result
+
+  def asSequence(self):
+    return tLexicographicSequencer(self, [x+1 for x in self._Subdivisions])
