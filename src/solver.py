@@ -32,18 +32,12 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 def getDirichletConstraints(mesh, u_d):
-    dir_file = file(",,dirichlet.dat", "w")
     constraints = {}
     for node in [node 
                  for node in mesh.dofManager()
                  if node.TrackingId == "dirichlet"]:
         constraints[node] = (u_d(node.Coordinates), [])
-        dir_file.write("%f\t%f\n" % (node.Coordinates[0],
-                                     node.Coordinates[1]))
 
-        print "DI!", node.Coordinates, u_d(node.Coordinates)
-    dir_file.close()
-    raw_input()
     return constraints
 
 
@@ -228,7 +222,7 @@ def _constraints2uc_contributions(constraints):
                     uc_components.append((other_coeff * other2_coeff, other2_node))
         return uc_components
 
-    uc_contributions = {}
+    uc_contributions = tools.tDictionaryWithDefault(lambda x: [])
     for node, (offset, lincomb_specifier) in constraints.iteritems():
         assert offset == 0
         # first, we need to make sure that we can pick out an unconstrained node.
@@ -239,7 +233,7 @@ def _constraints2uc_contributions(constraints):
         # then, we set up the equation so that there's an unconstrained node
         # by itself
         uc_coeff, uc_node = uc_components.pop(0)
-        uc_contributions[uc_node] = [(1/uc_coeff, node)] \
+        uc_contributions[uc_node] += [(1/uc_coeff, node)] \
                                      + [(-other_coeff/uc_coeff, other_node)
                                         for other_coeff, other_node in uc_components]
     return uc_contributions
@@ -300,7 +294,7 @@ class tLaplacianEigenproblemSolver:
             nonu = self.NumberAssignment[node]
             for coeff, other_node in lincomb_specifier:
                 other_nonu = self.CompleteNumberAssignment[other_node]
-                a[nonu, other_nonu] = coeff
+                a[nonu, other_nonu] += coeff
         
         a_ex = num.asarray(a, a.typecode(), num.SparseExecuteMatrix)
         a_herm_ex = num.hermite(a)

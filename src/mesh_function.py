@@ -78,6 +78,9 @@ class tMeshFunction(object):
     def __mul__(self, factor):
         return self.copy(vector = factor * self.Vector)
 
+    def __imul__(self, factor):
+        self.Vector *= factor
+
     def __rmul__(self, factor):
         return self.copy(vector = factor * self.Vector)
 
@@ -108,10 +111,10 @@ class tMeshFunction(object):
         ffs = el.formFunctionKit().differentiatedFormFunctions()
         nodes = el.nodes()
 
-        value = num.array([deriv(unit_point) for deriv in ffs[0]]) * self[nodes[0]]
+        value =  num.array([self[nodes[0]] * deriv(unit_point) for deriv in ffs[0]])
                                
         for grad, node in zip(ffs, nodes)[1:]:
-            value += num.array([deriv(unit_point) for deriv in grad]) * self[node]
+            value += num.array([self[node] * deriv(unit_point) for deriv in grad])
         return value
 
     def getRealGradientOnElement(self, el, unit_point):

@@ -217,8 +217,10 @@ class _tPyangleMesh(tMesh):
       marker = out_p.PointMarkers.get(no)
       guide = self.findShapeGuideNumber(marker)
       section = self.findShapeSectionByNumber(marker)
+      coordinates = num.array([pts.getSub(no, 0), pts.getSub(no, 1)])
 
       constraint_id = None
+      tracking_id = None
       if section:
         tracking_id = section.TrackingId
 
@@ -226,9 +228,7 @@ class _tPyangleMesh(tMesh):
         c = guide.DeformationCoordinate
         pts.setSub(no, c, guide.evaluate(pts.getSub(no, 1-c)))
 
-      self.DOFManager.registerNode(no,
-                                   num.array([pts.getSub(no, 0), pts.getSub(no, 1)]),
-                                   tracking_id, section)
+      self.DOFManager.registerNode(no, coordinates, tracking_id, section)
 
     pyangle.writeGnuplotMesh(",,mesh.data", out_p)
 
