@@ -5,10 +5,42 @@ import LinearAlgebra as la
 import spmatrix as sparse
 import itsolvers
 import math
+import pyvtk
+import precon
 
 
 
 
+# tools -----------------------------------------------------------------------
+def flatten( list ):
+  result = []
+  for i in list:
+    result.extend( i )
+  return result
+
+
+
+
+def writeSymmetricMatrixAsCSV( filename, matrix ):
+  mat_file = file( filename, "w" )
+  w,h = matrix.shape
+  for row in range( 0, h ):
+    for column in range( 0, row ):
+      mat_file.write( "%f," % matrix[ row, column ] )
+    for column in range( row, w ):
+      mat_file.write( "%f," % matrix[ column, row ] )
+    mat_file.write( "\n" )
+
+
+
+
+def norm2( vector ):
+  return math.sqrt( num.dot( vector, vector ) )
+
+
+
+
+# matrix building -------------------------------------------------------------
 class tDOFManager:
   def __init__( self ):
     self.DegreesOfFreedom = { }
@@ -39,6 +71,10 @@ class tMatrixBuilder:
       m.shape
       subscripting and slicing
     """
+    pass
+
+  def column( self, i ):
+    """Returns the i'th column of the built matrix as a copied dense array."""
     pass
 
   def forceIdentityMap( self, dof_number ):
@@ -72,8 +108,20 @@ class tSymmetricSparseMatrixBuilder( tMatrixBuilder ):
       mat[ i, dof_number ] = 0
     mat[ dof_number, dof_number ] = 1.
 
+  def column( self, i ):
+    w,h = self.Matrix.shape
+    col = num.zeros( (h,), num.Float )
+    for j in range( 0, i ):
+      col[ j ] = self.Matrix[ i,j ]
+    for j in range( i, h ):
+      col[ j ] = self.Matrix[ j,i ]
+    return col
+
   def add( self, small_matrix, small_matrix_rows, small_matrix_columns = None ):
-    self.Matrix.update_add_mask_sym( small_matrix, num.array( small_matrix_rows ) )
+    self.Matrix.update_add_mask_sym( 
+	small_matrix, 
+	num.array( small_matrix_rows ),
+	num.ones( (len( small_matrix_rows ),) ) )
 
 
 
@@ -93,9 +141,24 @@ class tGeneralSparseMatrixBuilder( tMatrixBuilder ):
 
 
 
+class tDenseVectorBuilder( tMatrixBuilder ):
+  def __init__( self, size ):
+    self.Matrix = num.zeros( (size,), num.Float )
+
+  def matrix( self ):
+    return self.Matrix
+
+  def add( self, small_matrix, small_matrix_rows, small_matrix_columns = None ):
+    for i in range( 0, len( small_matrix_rows ) ):
+      if small_matrix[ i ] != 0:
+	self.Matrix[ small_matrix_rows[ i ] ] += small_matrix[ i ]
+
+
+
+
 class tDenseMatrixBuilder( tMatrixBuilder ):
   def __init__( self, height, width ):
-    self.Matrix = num.zeros( (height,width) )
+    self.Matrix = num.zeros( (height,width), num.Float )
 
   def matrix( self ):
     return self.Matrix
@@ -103,10 +166,7 @@ class tDenseMatrixBuilder( tMatrixBuilder ):
   def add( self, small_matrix, small_matrix_rows, small_matrix_columns = None ):
     w,h = self.Matrix.shape
     if small_matrix_columns is None:
-      if w == 1:
-	small_matrix_columns = [ 0 ]
-      else:
-	small_matrix_columns = small_matrix_rows
+      small_matrix_columns = small_matrix_rows
 
     for i in range( 0, len( small_matrix_rows ) ):
       for j in range( 0, len( small_matrix_columns ) ):
@@ -197,7 +257,7 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     x = self.X
     y = self.Y
 
-    self.Area = math.fabs( 
+    self.Area = ( 
     (x[1]-x[0])*(y[2]-y[0])-
     (x[2]-x[0])*(y[1]-y[0]) 
     ) * 0.5
@@ -209,7 +269,7 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     return reduce(
       lambda sum,node: sum+node.coordinates(),
       self.Nodes[1:],
-      self.Node[0].coordinates() ) * ( 1/len( self.Nodes ) )
+      self.Nodes[0].coordinates() ) * ( 1./len( self.Nodes ) )
 
 
 
@@ -222,9 +282,11 @@ class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFin
     tTwoDimensionalTriangularFiniteElement.__init__( self, nodes, dof_manager )
     x = self.X
     y = self.Y
-
+    mymat2 = num.array( [x,y] )
+    mymat = num.concatenate(
+       num.ones( (1,3) ), mymat2 )
     self.InvCoordinateMatrix = la.inverse( num.concatenate(
-       num.ones( (1,3) ), num.array( [x,y] ) ) )
+       ( num.ones( (1,3) ), num.array( [x,y] ) ) ) )
 
     self.NodeIds = map( dof_manager.obtainDegreeOfFreedom, self.Nodes )
 
@@ -232,19 +294,20 @@ class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFin
     include_x = 0
     include_y = 0
 
-    if which == "x":
+    if which_derivative == "x":
       include_x = 1
-    elif  which == "y":
+    elif  which_derivative == "y":
       include_y = 1
-    elif which == "both":
+    elif which_derivative == "both":
       include_x = 1
       include_y = 1
     else:
-      raise tFiniteElementError, "addVolumeIntegral"
+      raise tFiniteElementError, "addVolumeIntegral: which_derivative invalid"
 
     g = num.matrixmultiply( self.InvCoordinateMatrix, num.array(
       [ [ 0, 0 ], [ include_y, 0 ], [ 0, include_x ] ] ) )
-    influence_matrix = self.Area * 0.5 * g * transpose( g )
+    influence_matrix = self.Area * \
+      num.matrixmultiply( g, num.transpose( g ) )
     builder.add( influence_matrix, self.NodeIds )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
@@ -264,16 +327,16 @@ class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFin
 def buildRectangularGeometry( dof_manager, dx, dy, nx, ny ):
   # build nodes
   nodes = [ ]
-  for node_y in range( 0, ny ):
+  for node_y in range( 0, ny + 1 ):
     line_nodes = [ ]
-    for node_x in range( 0, nx ):
+    for node_x in range( 0, nx + 1 ):
       line_nodes.append( tNode( num.array( [ node_x * dx, node_y * dy ] ) ) )
     nodes.append( line_nodes )
 
   # build elements, pay attention to mathematically positive orientation
   elements = []
-  for el_y in range( 0, ny - 1 ):
-    for el_x in range( 0, nx - 1 ):
+  for el_y in range( 0, ny ):
+    for el_x in range( 0, nx ):
       lower_el = tTwoDimensionalLinearTriangularFiniteElement(
         [ 
 	nodes[ el_y     ][ el_x     ],
@@ -304,25 +367,38 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
   dof_count = dof_manager.countDegreesOfFreedom()
 
   s_builder = tSymmetricSparseMatrixBuilder( dof_count )
-  b_builder = tDenseMatrixBuilder( dof_count, 1 )
+  b_builder = tDenseVectorBuilder( dof_count )
 
+  print "grad..."
   for el in elements:
     el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
     el.addVolumeIntegralOverFormFunction( b_builder, f )
 
   b_mat = b_builder.matrix()
-
+  
+  print "bcs..."
   for node in dirichlet_nodes:
+    boundary_value = u_d( node.coordinates() )
     i = dof_manager.obtainDegreeOfFreedom( node )
-    b_mat += s_builder.matrix()[:,i]
+    b_mat += s_builder.column( i ) * boundary_value
     s_builder.forceIdentityMap( i )
-    b_mat[ i ] = -f( node.coordinates() )
+    b_mat[ i ] = -boundary_value
 
   negated_b = b_builder.matrix() * -1
   compiled_s = s_builder.matrix().to_sss()
-  x = num.zeros( (dof_count,) )
+  x = num.zeros( (dof_count,), num.Float )
 
+  print "solving..."
   info, iter, relres = itsolvers.pcg( compiled_s, negated_b, x, 1e-12, dof_count )
+  print "info:", info
+  print "iter:", iter
+  print "relres:", relres
+
+  residual = num.zeros( x.shape, num.Float )
+  compiled_s.matvec( x, residual )
+
+  residual -= b_mat
+  print norm2( residual )
 
   return x
 
@@ -331,6 +407,18 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
 
 
 # visualization ---------------------------------------------------------------
+def writeGnuplotFile( name, nodes, dof_manager, solution ):
+  gnuplot_file = file( name, "w" )
+  for node in flatten( nodes ):
+    gnuplot_file.write( "%f %f %f\n" % (
+	node.coordinates()[0],
+	node.coordinates()[1],
+	solution[ dof_manager.obtainDegreeOfFreedom( node ) ] ) )
+
+def writeVtkFile( name, nodes, values ):
+  pass
+
+
 # driver ----------------------------------------------------------------------
 def poissonDemo():
   width = 1.
@@ -342,16 +430,16 @@ def poissonDemo():
   center = num.array( [ width/2, height/2 ] )
 
   def f( coord ):
-    diff = coord - center
-    if num.dot( diff, diff ) < 0.1:
-      return 0.4
+    if norm2( coord - center ) < 0.2:
+      return 20
     else:
       return 0
 
   def u_d( coord ):
-    return coord[0]
+    return norm2(coord-center)
 
   dof_manager = tDOFManager()
+  print "geometry..."
   nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny )
 
   # make the corner nodes dirichlet nodes
@@ -362,10 +450,10 @@ def poissonDemo():
   dirichlet_nodes.extend( map( lambda node_line: node_line[-1], nodes[1:-1] ) )
   
   solution = solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d )
+
+  writeGnuplotFile( "result.dat", nodes, dof_manager, solution )
   
 
 
 
 poissonDemo()
-  
-
