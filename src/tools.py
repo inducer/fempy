@@ -550,6 +550,20 @@ def argmin(list, f = lambda x: x):
 
 
 
+def argmax(list, f = lambda x: x):
+    current_max_index = -1
+    current_max = f(list[0])
+
+    for idx, item in enumerate(list[1:]):
+        value = f(item)
+        if value > current_max:
+            current_max_index = idx
+            current_max = value
+    return current_min_index+1
+
+
+
+
 def cartesianProduct(list1, list2):
     result = []
     for i in list1:

@@ -42,8 +42,7 @@ class tMeshFunction(object):
         self.NumberAssignment = number_assignment
         self.Vector = vector
 
-    def copy(self, mesh = None, number_assignment = None, vector = None,
-             ):
+    def copy(self, mesh = None, number_assignment = None, vector = None):
         return tMeshFunction(
             mesh or self.Mesh,
             number_assignment or self.NumberAssignment,
@@ -134,9 +133,25 @@ class tMeshFunction(object):
 
 
 
+def discretizeFunction(mesh, f, typecode = num.Float, number_assignment = None):
+    if number_assignment is None:
+        number_assignment = {}
+        for i, node in enumerate(mesh.dofManager()):
+            number_assignment[node] = i
+
+    vector = num.zeros((len(mesh.dofManager()),), typecode)
+    for node in mesh.dofManager():
+        vector[number_assignment[node]] = f(node.Coordinates)
+
+    return tMeshFunction(mesh, number_assignment, vector)
+
+
+
+
 class tScalarProductCalculator:
-    def __init__(self, mass_matrix):
+    def __init__(self, number_assignment, mass_matrix):
         self.MassMatrix = mass_matrix
+        self.NumberAssignment = number_assignment
         self.CastMassMatrix = {}
 
     def __getinitargs__(self):
@@ -148,9 +163,13 @@ class tScalarProductCalculator:
     def __setstate__(self, state):
         pass
     
-    def __call__(self, v1, v2):
-        v1 = v1.vector()
-        v2 = v2.vector()
+    def __call__(self, mf1, mf2):
+        v1 = mf1.vector()
+        v2 = mf2.vector()
+
+        assert mf1.numberAssignment() is self.NumberAssignment
+        assert mf2.numberAssignment() is self.NumberAssignment
+
         tc = v1.typecode()
         try:
             cast_spi = self.CastMassMatrix[tc]
