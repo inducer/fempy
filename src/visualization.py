@@ -138,22 +138,17 @@ def _visualizationDriver(driver, filename, info):
 
 
 def _getVisualizationData(mesh_func):
-    # also assign numbers for constrained nodes
     dof_manager = mesh_func.mesh().dofManager()
-    new_number_assignment = element.assignNodeNumbers(dof_manager,
-                                                      mesh_func.numberAssignment())
 
-    my_mesh_func = mesh_func.copy(number_assignment = new_number_assignment)
+    nonu_lookup = tools.reverseDictionary(mesh_func.numberAssignment())
 
-    nonu_lookup = tools.reverseDictionary(new_number_assignment)
-
-    nodes = [nonu_lookup[nonu] for nonu in range(len(dof_manager))]
-    node_values = [mesh_func[node] for node in nodes]
+    nodes = [nonu_lookup[nonu] for nonu in range(len(mesh_func.numberAssignment()))]
+    node_values = list(mesh_func.vector())
 
     vis_data = tVisualizationData(nodes, node_values)
 
     for el in mesh_func.mesh().elements():
-        el.getVisualizationData(my_mesh_func, vis_data)
+        el.getVisualizationData(mesh_func, vis_data)
     return vis_data
 
 

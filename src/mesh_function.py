@@ -9,20 +9,45 @@ import tools
 
 
 
+def makeCompleteVector(complete_number_assignment, incomplete_vector,
+                       constraints):
+    assert min(complete_number_assignment.values()) == 0
+    assert max(complete_number_assignment.values()) == len(complete_number_assignment) - 1
+
+    incomplete_dof_count = incomplete_vector.shape[0]
+    complete_dof_count = len(complete_number_assignment)
+
+    result = num.zeros((complete_dof_count,), incomplete_vector.typecode())
+    result[:incomplete_dof_count] = incomplete_vector
+    
+    def get_value(node):
+        try:
+            constraint = constraints[node]
+            return constraint[0] \
+                   + sum([coeff * get_value(other_node)
+                          for coeff, other_node in constraint[1]])
+        except KeyError:
+            return incomplete_vector[complete_number_assignment[node]]
+
+    for node in constraints:
+        result[complete_number_assignment[node]] = get_value(node)
+    return result
+
+
+
+
 class tMeshFunction(object):
-    def __init__(self, mesh, number_assignment, vector, node_constraints):
+    def __init__(self, mesh, number_assignment, vector):
         self.Mesh = mesh
         self.NumberAssignment = number_assignment
         self.Vector = vector
-        self.NodeConstraints = node_constraints
 
     def copy(self, mesh = None, number_assignment = None, vector = None,
-             node_constraints = None):
+             ):
         return tMeshFunction(
             mesh or self.Mesh,
             number_assignment or self.NumberAssignment,
-            vector or self.Vector,
-            node_constraints or self.NodeConstraints)
+            vector or self.Vector)
 
     # accessors ------------------------------------------------------------------
     def mesh(self):
@@ -36,20 +61,19 @@ class tMeshFunction(object):
 
     # operations -----------------------------------------------------------------
     def conjugate(self):
-        return tMeshFunction(self.Mesh, self.NumberAssignment, 
-                             num.conjugate(self.Vector))
+        return self.copy(vector = num.conjugate(self.Vector))
 
     def __add__(self, other):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
-        return tMeshFunction(self.Mesh, self.NumberAssignment, 
-                             self.Vector + other.Vector)
+
+        return self.copy(vector = self.Vector + other.Vector)
 
     def __sub__(self, other):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
-        return tMeshFunction(self.Mesh, self.NumberAssignment, 
-                             self.Vector - other.Vector)
+
+        return self.copy(vector = self.Vector - other.Vector)
 
     def __mul__(self, factor):
         return self.copy(vector = factor * self.Vector)
@@ -68,13 +92,7 @@ class tMeshFunction(object):
 
     # value getters --------------------------------------------------------------
     def __getitem__(self, node):
-        try:
-            constraint = self.NodeConstraints[node]
-            return constraint[0] \
-                   + sum([coeff * getNodeValue(other_node, number_assignment, vector)
-                          for coeff, other_node in constraint[1]])
-        except KeyError:
-            return self.Vector[self.NumberAssignment[node]]
+        return self.Vector[self.NumberAssignment[node]]
 
     def getValueOnElement(self, el, unit_point):
         ffs = el.formFunctionKit().formFunctions()
@@ -128,6 +146,8 @@ class tScalarProductCalculator:
         pass
     
     def __call__(self, v1, v2):
+        v1 = v1.vector()
+        v2 = v2.vector()
         tc = v1.typecode()
         try:
             cast_spi = self.CastMassMatrix[tc]

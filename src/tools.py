@@ -325,6 +325,15 @@ def unitVector(i, dim, typecode = num.Float):
 
 
 
+def conjugate(value):
+    try:
+        return value.conjugate()
+    except AttributeError:
+        return value
+
+
+
+
 class tSparseVector(tDictionaryWithDefault):
     def __init__(self):
         tDictionaryWithDefault.__init__(self, lambda x: 0.)
