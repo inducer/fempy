@@ -7,9 +7,6 @@ BCs
   Periodische
   Floquet
 
-hieraus ein echtes python package machen
-user code in test/ und example/ schieben
-
 pywannier erstellen
 
 unit tests
@@ -25,17 +22,14 @@ adaptiveloop:
   wie kommt eoc rein?
     als wrapper um verschiedene error estimators?
 
-a posteriori error estimator class
-class because it needs to cache error values
-different implementations:
-  - L2 against analytical solution
+error estimator implementations:
   - L2, a posteriori estimate
   - Energy, a posteriori estimate
   
-tmeshchange: changesolution
-
 analytically bounded mesh
   wie passt das zu meinem problem?
+  spezifikation ueber deformationsfelder
+    mit "deformationshauptachse"
   -> implementieren
 
 wer entscheidet ueber randknoten?

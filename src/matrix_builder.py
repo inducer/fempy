@@ -96,8 +96,9 @@ class tPyLinearMatrixBuilder(tMatrixBuilder):
 
 
 class tSymmetricSparseMatrixBuilder(tPyLinearMatrixBuilder):
-  def __init__(self, size):
-    self.Matrix = num.zeros((size, size), num.Float, num.SparseBuildMatrix)
+  def __init__(self, size, typecode):
+    tPyLinearMatrixBuilder.__init__(self)
+    self.Matrix = num.zeros((size, size), typecode, num.SparseBuildMatrix)
 
   def addScattered(self, small_matrix, small_matrix_rows, small_matrix_columns):
     raise RuntimeError, "cannot addScattered to a symmetric matrix"
@@ -105,23 +106,25 @@ class tSymmetricSparseMatrixBuilder(tPyLinearMatrixBuilder):
 
 
 
-class tGeneralSparseMatrixBuilder(tMatrixBuilder):
-  def __init__(self, height, width):
-    self.Matrix = num.zeros((size, size), num.Float, num.SparseBuildMatrix)
+class tGeneralSparseMatrixBuilder(tPyLinearMatrixBuilder):
+  def __init__(self, shape, typecode):
+    tPyLinearMatrixBuilder.__init__(self)
+    self.Matrix = num.zeros(shape, typecode, num.SparseBuildMatrix)
 
 
 
 
-class tDenseMatrixBuilder(tMatrixBuilder):
-  def __init__(self, height, width):
-    self.Matrix = num.zeros((size, size), num.Float)
+class tDenseMatrixBuilder(tPyLinearMatrixBuilder):
+  def __init__(self, shape, typecode):
+    tPyLinearMatrixBuilder.__init__(self)
+    self.Matrix = num.zeros(shape, typecode)
 
 
 
 
 class tDenseVectorBuilder(tVectorBuilder):
-  def __init__(self, size):
-    self.Matrix = num.zeros((size,), num.Float)
+  def __init__(self, size, typecode):
+    self.Matrix = num.zeros((size,), typecode)
 
   def matrix(self):
     return self.Matrix

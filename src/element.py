@@ -183,6 +183,9 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return num.matrixmultiply(self.TransformMatrixInverse, point - self.Origin)
 
   # external tools ------------------------------------------------------------
+  def area(self):
+    return self.Area
+
   def barycenter(self):
     return sum([ nd.coordinates() for nd in self.Nodes[0:3] ]) / 3.
 
@@ -192,11 +195,13 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
   def isInElement(self, point):
     # convert point to barycentric
-    point_minus_origin = point - self.Nodes[0].coordinates()
-    barycentric = num.matrixmultiply(self.TransformMatrixInverse, point_minus_origin)
+    barycentric = num.matrixmultiply(self.TransformMatrixInverse, 
+      point - self.Nodes[0].coordinates())
     # check if point is in
-    # FIXME: This doesn't work in Pylinear.
-    return num.alltrue(barycentric >= 0) and sum(barycentric) < 1
+    for i in barycentric:
+      if i < 0:
+        return False
+    return sum(barycentric) < 1
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):

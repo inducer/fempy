@@ -12,16 +12,15 @@ import pylinear.matrices as num
 import pylinear.linear_algebra as la
 
 # FEM imports -----------------------------------------------------------------
-import pyangle
-import visualization
-import spatial_btree
-from matrix_builder import *
-from element import *
-from stopwatch import *
-from solver import *
-from tools import *
-from geometry import *
-import eoc
+import fempy.visualization as vis
+import fempy.eoc as eoc
+import fempy.error_estimator as error_estimator
+from fempy.matrix_builder import *
+from fempy.element import *
+from fempy.stopwatch import *
+from fempy.solver import *
+from fempy.tools import *
+from fempy.mesh import *
 
 
 
@@ -40,31 +39,72 @@ def makeSolutionFunction(elements, solution, finder = None):
 
 
 
-def solveAdaptively(mesh, solve, mark_for_refinement, iteration_limit = None):
+def solveAdaptively(mesh, solve, element_needs_refining, iteration_limit = None):
   mesh.generate()
 
   iteration_count = 0
   solution = None
-  while iteration_count < iteration_limit:
+  while True:
     refinement_info, solution = solve(mesh, solution)
-    mesh_change = mesh.getRefinement(lambda el: mark_for_refinement(refinement_info, el))
+
+    iteration_count += 1
+    if iteration_limit is not None and iteration_count >= iteration_limit:
+      return mesh, solution
+
+    mesh_change = mesh.getRefinement(lambda el: element_needs_refining(refinement_info, el))
+
     if mesh_change is None:
-      return solution
+      return mesh,solution
 
     mesh = mesh_change.meshAfter()
     mesh.generate()
     solution = mesh_change.changeSolution(solution)
 
-    iteration_count += 1
-
 
 
   
-def junk():
-  def needsRefinement(vert_origin, vert_destination, vert_apex, area):
-    return area > 0.001
-  shape = [ (0.01,0), (1,0), (1,1), (0,1) ]
-  nodes, elements = buildShapeGeometry(dof_manager, shape, needsRefinement, False)
+def adaptiveDemo():
+  a = 5
+
+  def f(point):
+    x = point[0]
+    y = point[1]
+    return \
+      -4 * a **2 * (x**2 * y**4 + x**4 * y**2) * math.sin(a * x**2 * y**2) + \
+      2 * a * (y**2 + x**2) * math.cos(a * x**2 * y**2)
+
+  def solution(point):
+    x = point[0]
+    y = point[1]
+    return math.sin(a * x**2 * y** 2)
+
+  job = tJob("geometry")
+  mesh = tShapedMesh([(0,0), (0,1), (1,1), (1,0)])
+  mesh.generate()
+  job.done()
+
+  def isEdgeNode(node):
+    x = node.coordinates()
+    return x[0] in [0,1] or x[1] in [0,1]
+
+  def solve(new_mesh, start_solution_vector):
+    dirichlet_nodes = filter(isEdgeNode, new_mesh.nodes())
+    solution_vector = solvePoisson(new_mesh, dirichlet_nodes, f, solution, start_solution_vector)
+
+    my_estimator = error_estimator.tAnalyticSolutionErrorEstimator(new_mesh, solution_vector,
+      solution)
+
+    max_error = max(map(my_estimator, new_mesh.elements()))
+    return (my_estimator, max_error), solution_vector
+
+  def decideOnRefinement((error_estimator, max_error), element):
+    return error_estimator(element) > 0.5 * max_error
+
+  new_mesh, solution_vector = solveAdaptively(mesh, solve, decideOnRefinement, 15)
+
+  vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  #vis.writeGnuplotFile("+result.dat", dof_manager, elements, solution)
+  #vis.writeVtkFile("+result.vtk", dof_manager, elements, solution)
 
 
 
@@ -86,23 +126,17 @@ def poissonDemo(n):
 
   job = tJob("geometry")
   mesh = tRectangularMesh(n, n)
-  nodes, elements, hanging_nodes = mesh.getData()
+  mesh.generate()
+  nodes = mesh.nodes()
   job.done()
 
   # make the edge nodes dirichlet nodes
-  def isEdgeNode(node):
-    x = node.coordinates()
-    return x[0] in [0,1] or x[1] in [0,1]
-
-  dirichlet_nodes = filter(isEdgeNode, nodes)
   
-  solution = solvePoisson(mesh.dofManager(), elements, dirichlet_nodes, f, u_d)
+  solution = solvePoisson(mesh.dofManager(), mesh.elements(), dirichlet_nodes, f, u_d)
 
   #s_f1 = makeSolutionFunction(elements, solution, finder)
 
-  visualization.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), elements, solution)
-  #visualization.writeGnuplotFile("+result.dat", dof_manager, elements, solution)
-  #visualization.writeVtkFile("+result.vtk", dof_manager, elements, solution)
+  vis.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), solution)
   
 
 
@@ -139,7 +173,7 @@ def poissonTest():
   dirichlet_nodes = filter(isEdgeNode, nodes)
   solution_vector = solvePoisson(dof_manager, elements, dirichlet_nodes, f, solution)
 
-  visualization.writeVtkFile("+result.vtk", dof_manager, elements, solution_vector)
+  vis.writeVtkFile("+result.vtk", dof_manager, elements, solution_vector)
 
   def errorFunctionL2(point, solution_func_value):
     result = (solution(point) - solution_func_value) ** 2
@@ -156,7 +190,8 @@ def poissonTest():
 
 
 #poissonTest()
-poissonDemo(10)
+#poissonDemo(20)
+adaptiveDemo()
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")

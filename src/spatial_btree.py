@@ -113,7 +113,7 @@ class tSpatialBinaryTreeBucket:
       return bucket.findElement(point)
     else:
       # We don't. Perform linear search.
-      for el in self.Elements:
+      for el, bbox in self.Elements:
 	if el.isInElement(point):
 	  return el
       return None

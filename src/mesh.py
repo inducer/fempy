@@ -1,6 +1,8 @@
 import pylinear.matrices as num
 import element
 import matrix_builder
+import pyangle
+import fempy.spatial_btree as spatial_btree
 
 
 
@@ -44,8 +46,21 @@ class tMeshChange:
     return self.MeshAfter
 
   def changeSolution(self, before_solution_vector):
-    # FIXME: implement me using the element finders
-    raise RuntimeError, "not yet implemented"
+    """Interpolates a solution vector for the "before" mesh into one for
+    the "after" mesh, which it returns. The "after" mesh is assumed to be
+    in the generated state at the point of the call.
+    """
+    finder = self.MeshBefore.findElement
+    dofm = self.MeshAfter.dofManager()
+    after = num.zeros((self.MeshAfter.dofManager().countDegreesOfFreedom(),), 
+      before_solution_vector.typecode())
+    for node in self.MeshAfter.nodes():
+      before_el = finder(node.coordinates())
+      if before_el is not None:
+        after[dofm.getDegreeOfFreedomNumber(node)] = \
+          before_el.getSolutionFunction(before_solution_vector)(node.coordinates())
+    return after
+
 
 
 
@@ -75,34 +90,32 @@ class tMesh:
     """
     pass
 
-  def getData(self):
-    """Returns a tuple (nodes, elements, hanging_nodes) where
+  def nodes(self):
+    return self.Nodes
 
-    nodes is a list of tNodes
+  def elements(self):
+    return self.Elements
 
-    elements is a list of tElements
-
-    hanging_nodes is a list of three-tuples that each look like
-    (node1, hanging_node, node2), where hanging_node's value is fixed
-    halfway between node1 and node2.
+  def hangingNodes(self):
+    """Returns a list of three-tuples that each look like
+    (node1, hanging_node, node2), where hanging_node's value should 
+    be fixed halfway between node1 and node2.
     """
-    return self.Nodes, self.Elements, self.HangingNodes
+    return self.HangingNodes
 
-  def getRefinement(self, mark_for_refinement):
-    """Returns a tMeshChange that takes into account the 
-    knowledge contained in the error_estimator and this mesh. 
-    The error_estimator is a function that receives
-    an element as the input and returns some real-valued positive measure 
-    of the "error" that is to be eliminated by refinement.
+  def getRefinement(self, element_needs_refining):
+    """Returns a tMeshChange that represents a refined mesh
+    based on the element_needs_refining function passed as
+    the argument.
 
     Returns None if the mesh is not refinable.
     """
     return None
 
-  def getElementFinder(self):
+  def findElement(self, element):
     if self.ElementFinder is None:
       self.ElementFinder = spatial_btree.buildElementFinder(self.Elements)
-    return self.ElementFinder
+    return self.ElementFinder(element)
 
 
 
@@ -113,7 +126,6 @@ class tRectangularMesh(tMesh):
     self.Steps = [nx, ny]
     self.Extent = [x,y]
     self.Order = 1
-    self.generate()
 
   def generate(self):
     nx = self.Steps[0]
@@ -181,10 +193,6 @@ class tShapedMesh(tMesh):
     tMesh.__init__(self)
     self.ShapePoints = shape_points
     self.Order = order
-
-    def default_refinement_func(v1, v2, v3, area):
-      return False
-
     self.RefinementFunction = refinement_func
 
   def generate(self):
@@ -192,7 +200,7 @@ class tShapedMesh(tMesh):
       return
 
     self.DOFManager = matrix_builder.tDOFManager()
-    out_p = pyangle.triangulateArea(shape_points, self.RefinementFunction)
+    out_p = pyangle.triangulateArea(self.ShapePoints, refinement_func = self.RefinementFunction)
 
     pts = out_p.Points
     tris = out_p.Triangles
@@ -218,12 +226,14 @@ class tShapedMesh(tMesh):
       a = nodes[ tris.getSub(tri, 0) ]
       b = nodes[ tris.getSub(tri, 1) ]
       c = nodes[ tris.getSub(tri, 2) ]
-      if second_order:
+      if self.Order == 2:
         elements.append(element.tTwoDimensionalQuadraticTriangularFiniteElement(
           [ a, b, c, between(a, b), between(b, c), between(c,a) ], 
           self.DOFManager))
-      else:
+      elif self.Order == 1:
         elements.append(element.tTwoDimensionalLinearTriangularFiniteElement([a,b,c], self.DOFManager))
+      else:
+        raise RuntimeError, "invalid order specified"
 
     self.Nodes = nodes
     self.Elements = elements
@@ -232,6 +242,21 @@ class tShapedMesh(tMesh):
     # meshes. We should not depend on its presence any longer 
     # than necessary.
     del self.RefinementFunction
+
+  def getRefinement(self, element_needs_refining):
+    def needsRefinement(vert_origin, vert_destination, vert_apex, area):
+      barycenter = num.array([vert_origin.x() + vert_destination.x() + vert_apex.x(),
+        vert_origin.y() + vert_destination.y() + vert_apex.y()]) / 3.
+      el = self.findElement(barycenter)
+      if el is None:
+        return False
+      if element_needs_refining(el):
+        return area > el.area() * 0.2
+      else:
+        return area > el.area()
+
+    return tMeshChange(self, tShapedMesh(self.ShapePoints, self.Order, needsRefinement))
+
 
 
 
