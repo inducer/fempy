@@ -90,7 +90,8 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
                                           start_solution_vector)
 
     job = stopwatch.tJob("error")
-    my_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)
+    #my_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)
+    my_estimator = element_norm.makeL2ErrorNormSquared(sol_c, solution_vector)
 
     errors = map(my_estimator, new_mesh.elements())
     worst_error = max(errors)

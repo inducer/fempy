@@ -24,4 +24,4 @@ sol = (eo.PLUS, (eo.TIMES, c1, (eo.LOG, expr_r)), c2)
 mesh = fempy.mesh.tTwoDimensionalMesh(
   fempy.geometry.getAnnulusGeometry(5, 0.1, use_exact = True), 
   hole_starts = [(0,0)])
-test_tools.adaptiveDemo(sol, mesh, max_iterations = 9)
+test_tools.adaptiveDemo(sol, mesh, max_iterations = 20)
