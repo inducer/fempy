@@ -84,6 +84,16 @@ class tFiniteElement:
     """
     pass
 
+  def getVolumeIntegralOver( self, f, coefficients ):
+    """This functions returns the value of
+
+    \int_{Element} f( (x,y), u(x,y) ) d(x,y)
+
+    where u is a linear combination of the form functions given
+    by the coefficients sequence and f is a function supplied
+    by the user.
+    """
+
   def getSolutionFunction( self, solution_vector ):
     """Once the linear system has been solved, you can use this
     function to obtain the actual solution function which, in
@@ -239,6 +249,15 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
         lambda point: f( self.transformToReal( point ) , ff(  point ) ) )
 
     builder.add( influences, self.NodeNumbers )
+
+  def getVolumeIntegralOver( self, f, coefficients ):
+    jacobian_det = self.Area * 2
+
+    def functionInIntegral( point ):
+      ff_comb = sum( [ coeff * ff( point ) for coeff,ff in zip( coefficients, self.FormFunctions ) ] )
+      return f( self.transformToReal( point ) , ff_comb )
+
+    return jacobian_det * integration.integrateFunctionOnUnitTriangle( functionInIntegral )
 
   def getSolutionFunction( self, solution_vector ):
     node_values = num.take( solution_vector, self.NodeNumbers )
@@ -443,3 +462,4 @@ addFormFunctions(
   tDistortedTwoDimensionalLinearTriangularFiniteElement,
   form_function.makeFormFunctions( 1, [ [0,0], [1,0], [0,1] ] ),
   dimensions = 2 )
+

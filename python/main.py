@@ -67,7 +67,7 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
           [ c,d,b, between( c, d ), between( d, b ), between( b, c ) ], 
           dof_manager )
       else:
-        if True:
+        if False:
           lower_el = makeDistortedLinearElement( [ a,b,d ], dof_manager )
           upper_el = makeDistortedLinearElement( [ c,d,b ], dof_manager )
         else:
@@ -163,13 +163,13 @@ def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 10
-  ny = 10
+  nx = 40
+  ny = 40
 
   center = num.array( [ width/2, height/2 ] )
 
   def f( x ):
-    if norm2( x - center ) < 0.2:
+    if norm2( x - center ) < 0.3:
       return -20
     else:
       return 20
@@ -186,12 +186,12 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob( "geometry" )
-  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
+  #nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
 
   def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
     return area > 0.001
-  shape = [ (0.2,0), (1,0), (1,1), (0,1) ]
-  #nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement, False )
+  shape = [ (0,0), (1,0), (1,1), (0,1) ]
+  nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement, False )
   job.done()
 
   job = tJob( "btree" )
@@ -216,4 +216,53 @@ def poissonDemo():
 
 
 
+def poissonTest():
+  width = 1.
+  height = 1.
+  
+  nx = 40
+  ny = 40
+
+  a = 5
+
+  def f( point ):
+    x = point[0]
+    y = point[1]
+    return \
+      -4 * a **2 * ( x**2 * y**4 + x**4 * y**2 ) * math.sin( a * x**2 * y**2 ) + \
+      2 * a * ( y**2 + x**2 ) * math.cos( a * x**2 * y**2 )
+
+  def solution( point ):
+    x = point[0]
+    y = point[1]
+    return math.sin( a * x**2 * y** 2 )
+    
+  dof_manager = tDOFManager()
+  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, True )
+
+  # make the edge nodes dirichlet nodes
+  def isEdgeNode( node ):
+    x = node.coordinates()
+    return x[0] in [0,1] or x[1] in [0,1]
+
+  dirichlet_nodes = filter( isEdgeNode, nodes )
+  solution_vector = solvePoisson( dof_manager, elements, dirichlet_nodes, f, solution )
+
+  visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution_vector )
+
+  def errorFunctionL2( point, solution_func_value ):
+    result = ( solution( point ) - solution_func_value ) ** 2
+    assert result > 0 
+    return result
+
+  error_integral = 0
+  for el in elements:
+    node_values = num.take( solution_vector, el.nodeNumbers() )
+    error_integral += el.getVolumeIntegralOver( errorFunctionL2, node_values )
+
+  print "L_2 error estimate:", error_integral
+    
+
+
+#poissonTest()
 poissonDemo()

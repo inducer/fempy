@@ -294,22 +294,15 @@ int triunsuitable( vertex triorg, vertex tridest, vertex triapex, REAL area )
 
 
 
-void triangulateWrapper(char *options, tTriangulationParameters &in, 
+void triangulateWrapper( char *options, tTriangulationParameters &in, 
     tTriangulationParameters &out,
     tTriangulationParameters &voronoi,
-    object refinement_func)
+    object refinement_func )
 {
   RefinementFunction = refinement_func;
-
-  REAL u[] = {
-    1,2
-  };
-  tVertex vert( u );
-  RefinementFunction( boost::ref( vert ), boost::ref( vert ), boost::ref( vert ), 5 );
-  
   triangulate( options, &in, &out, &voronoi );
-
   RefinementFunction = object(); // i.e. None
+
   out.holelist = NULL;
   out.numberofholes = 0;
 
@@ -344,7 +337,8 @@ BOOST_PYTHON_MODULE(pyanglemetal)
     .def_readonly( "Edges", &tTriangulationParameters::Edges )
     .def_readonly( "EdgeMarkers", &tTriangulationParameters::EdgeMarkers )
 
-    .def_readonly( "Normals", &tTriangulationParameters::Normals );
+    .def_readonly( "Normals", &tTriangulationParameters::Normals )
+    ;
   
   class_<tForeignArray<REAL>, bases<>, tForeignArray<REAL>, boost::noncopyable >
     ( "tRealArray", no_init )
@@ -353,7 +347,8 @@ BOOST_PYTHON_MODULE(pyanglemetal)
     .def( "set", &tForeignArray<REAL>::set )
     .def( "setSub", &tForeignArray<REAL>::setSub )
     .def( "get", &tForeignArray<REAL>::get )
-    .def( "getSub", &tForeignArray<REAL>::getSub );
+    .def( "getSub", &tForeignArray<REAL>::getSub )
+    ;
 	
   class_<tForeignArray<int>, bases<>, tForeignArray<int>, boost::noncopyable >
     ( "tIntArray", no_init )
@@ -362,9 +357,11 @@ BOOST_PYTHON_MODULE(pyanglemetal)
     .def( "set", &tForeignArray<int>::set )
     .def( "setSub", &tForeignArray<int>::setSub )
     .def( "get", &tForeignArray<int>::get )
-    .def( "getSub", &tForeignArray<int>::getSub );
+    .def( "getSub", &tForeignArray<int>::getSub )
+    ;
 
   class_<tVertex, bases<>, tVertex, boost::noncopyable>( "tVertex", no_init )
     .def( "x", &tVertex::x )
-    .def( "y", &tVertex::y );
+    .def( "y", &tVertex::y )
+    ;
 }
