@@ -85,9 +85,9 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     if start_solution_vector is None:
       start_solution_vector = num.zeros((len(new_mesh.dofManager()),), num.Float)
 
-    solver.updateDirichletBCs(new_mesh, sol_c)
-    solution_vector = solver.solvePoisson(new_mesh, 
-      rhs_c, start_solution_vector)
+    constraints = solver.getDirichletConstraints(new_mesh, sol_c)
+    solution_vector = solver.solvePoisson(new_mesh, rhs_c, constraints,
+                                          start_solution_vector)
 
     job = stopwatch.tJob("error")
     my_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)

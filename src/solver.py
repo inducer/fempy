@@ -31,19 +31,19 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 
-def updateDirichletBCs(mesh, u_d):
+def getDirichletConstraints(mesh, u_d):
+    constraints = {}
     for node in [node 
                  for node in mesh.dofManager()
                  if node.TrackingId == "dirichlet"]:
-        node.setConstraint((u_d(node.Coordinates), []))
+        constraints[node] = (u_d(node.Coordinates), [])
+    return constraints
 
 
 
 
-def _buildStiffnessMatrix(mesh, number_assignment):
-    dof_count = len(mesh.dofManager().unconstrainedNodes())
-
-    s = num.zeros((dof_count, dof_count), num.Float, num.SparseBuildMatrix)
+def _buildStiffnessMatrix(mesh, dof_count, number_assignment, typecode = num.Float):
+    s = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
     contrib_of_constrained_nodes = tools.tDictionaryWithDefault(
         lambda x: tools.tSparseVector())
@@ -51,7 +51,8 @@ def _buildStiffnessMatrix(mesh, number_assignment):
     job = stopwatch.tJob("stiffness matrix")
     for el in mesh.elements():
         nonus = [number_assignment[node] for node in el.nodes()]
-        contribs = el.getVolumeIntegralsOverDifferentiatedFormFunctions()
+        contribs = num.asarray(el.getVolumeIntegralsOverDifferentiatedFormFunctions(),
+                               typecode)
         s.addScatteredSymmetric(nonus, contribs)
 
         constrained_indices = [i for i in range(len(nonus)) if nonus[i] < 0]
@@ -69,10 +70,8 @@ def _buildStiffnessMatrix(mesh, number_assignment):
 
 
 
-def _buildMassMatrix(mesh, number_assignment, weight_function):
-    dof_count = len(mesh.dofManager().unconstrainedNodes())
-
-    m = num.zeros((dof_count, dof_count), num.Float, num.SparseBuildMatrix)
+def _buildMassMatrix(mesh, dof_count, number_assignment, weight_function, typecode = num.Float):
+    m = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
     contrib_of_constrained_nodes = tools.tDictionaryWithDefault(
         lambda x: tools.tSparseVector())
@@ -80,7 +79,8 @@ def _buildMassMatrix(mesh, number_assignment, weight_function):
     job = stopwatch.tJob("mass matrix")
     for el in mesh.elements():
         nonus = [number_assignment[node] for node in el.nodes()]
-        contribs = el.getVolumeIntegralsOverFormFunctions(weight_function)
+        contribs = num.asarray(el.getVolumeIntegralsOverFormFunctions(weight_function),
+                               typecode)
         m.addScatteredSymmetric(nonus, contribs)
 
         constrained_indices = [i for i in range(len(nonus)) if nonus[i] < 0]
@@ -98,19 +98,33 @@ def _buildMassMatrix(mesh, number_assignment, weight_function):
 
 
 
-def solvePoisson(mesh, f, start_vector = None):
+def solvePoisson(mesh, f, node_constraints, start_vector = None):
     """Solve the Poisson equation
 
     laplace u = f
     with u = u_d in the dirichlet_nodes.
+
+    node_constraints is a dictionary that associates nodes with 
+    constraints. A constraint is a datastructure of the following shape:
+    
+    intercept, [(coefficient_1, node_2), (coefficient_2, index_2), ...]
+
+    which is evaluated to
+
+    intercept + coefficient_1 * getValue(node_1) + ...
     """
 
     dof_manager = mesh.dofManager()
-    number_assignment = element.assignNodeNumbers(dof_manager.unconstrainedNodes())
-    complete_number_assignment = element.assignNodeNumbers(dof_manager.constrainedNodes(), number_assignment, -1, -1)
-    dof_count = len(dof_manager.unconstrainedNodes())
+    unconstrained_nodes = [node for node in dof_manager if not node in node_constraints]
+    constrained_nodes = node_constraints.keys()
+    number_assignment = element.assignNodeNumbers(unconstrained_nodes)
+    complete_number_assignment = element.assignNodeNumbers(constrained_nodes, 
+                                                           number_assignment, -1, -1)
+    dof_count = len(unconstrained_nodes)
 
-    s, contrib_of_constrained_nodes = _buildStiffnessMatrix(mesh, complete_number_assignment)
+    s, contrib_of_constrained_nodes = _buildStiffnessMatrix(mesh, 
+                                                            dof_count,
+                                                            complete_number_assignment)
 
     b = num.zeros((dof_count,), num.Float)
 
@@ -119,17 +133,16 @@ def solvePoisson(mesh, f, start_vector = None):
         this_el_b = el.getVolumeIntegralsOverFormFunction(
             lambda x,formfunc_value: f(x) * formfunc_value)
         for node, v in zip(el.nodes(), this_el_b):
-            if node.Constraint is None:
+            try:
                 b[number_assignment[node]] += v
+            except KeyError:
+                pass
     job.done()
 
     job = stopwatch.tJob("bcs: dirichlet")
   
-    for node in [node 
-                 for node in dof_manager.constrainedNodes()
-                 if node.Constraint is not None and node.Constraint[1] == []]:
-        boundary_value = node.Constraint[0] 
-        assert len(node.Constraint[1]) == 0
+    for node, (boundary_value, other_nodes) in node_constraints.iteritems():
+        assert len(other_nodes) == 0
         if boundary_value != 0:
             contrib_of_constrained_nodes[node].addTo(b, boundary_value)
     job.done()
@@ -140,7 +153,8 @@ def solvePoisson(mesh, f, start_vector = None):
     s_op = algo.makeMatrixOperator(compiled_s)
     
     return mesh_function.tMeshFunction(mesh, number_assignment, 
-                                       solveSPDSystem(s_op, -b))
+                                       solveSPDSystem(s_op, -b),
+                                       node_constraints)
 
 
 
@@ -187,13 +201,14 @@ class tLaplacianEigenproblemSolver:
         
         dof_manager = mesh.dofManager()
         number_assignment = self.NumberAssignment = \
-                            element.assignIndicativeNodeNumbers(dof_manager)
-        complete_number_assignment = element.assignNodeNumbers(dof_manager.constrainedNodes(), number_assignment, -1, -1)
-
+                            element.assignNodeNumbers(dof_manager.unconstrainedNodes())
+        complete_number_assignment = element.assignNodeNumbers(dof_manager.constrainedNodes(), 
+                                                               number_assignment, 
+                                                               -1, -1)
         dof_count = len(dof_manager.unconstrainedNodes())
 
-        self.S, self.SContributionsFromConstrainedNodes = _buildStiffnessMatrix(mesh, complete_number_assignment)
-        self.M, self.MContributionsFromConstrainedNodes = _buildMassMatrix(mesh, complete_number_assignment, g)
+        self.S, self.SContributionsFromConstrainedNodes = _buildStiffnessMatrix(mesh, complete_number_assignment, typecode)
+        self.M, self.MContributionsFromConstrainedNodes = _buildMassMatrix(mesh, complete_number_assignment, g, typecode)
         self.SWithConstraints = None
         self.MWithConstraints = None
 
@@ -202,7 +217,8 @@ class tLaplacianEigenproblemSolver:
     
             for el in mesh.elements():
                 nonus = [number_assignment[node] for node in el.nodes()]
-                contribs = el.getVolumeIntegralsOverFormFunctions(f)
+                contribs = num.asarray(el.getVolumeIntegralsOverFormFunctions(f),
+                                       typecode)
                 s.addScatteredSymmetric(nonus, contribs)
                 
                 constrained_indices = [i for i in range(len(nonus)) if nonus[i] < 0]
@@ -230,7 +246,6 @@ class tLaplacianEigenproblemSolver:
         nuass = self.NumberAssignment
 
         def addContributions(independent_node, coeff, dependent_node):
-            print "addcontrib", independent_node.Number, "<-", dependent_node.Number
             if independent_node.Constraint is None:
                 indep_node_number = self.NumberAssignment[independent_node]
                 s_contrib[dependent_node].addToMatrixColumn(s, indep_node_number,
@@ -280,8 +295,13 @@ class tLaplacianEigenproblemSolver:
             raise RuntimeError, "insertConstraints was never called, "+\
                   "no finalized matrices available."
         
-        return shiftAndInvertEigenproblem(sigma, s, m,
-                                          number_of_eigenvalues = number_of_eigenvalues)
+        eigen_result = shiftAndInvertEigenproblem(sigma, s, m,
+                                                  number_of_eigenvalues)
+
+        return [(eigenvalue, mesh_function.tMeshFunction(self.Mesh,
+                                                        self.NumberAssignment,
+                                                        eigenmode))
+                for eigenvalue, eigenmode in eigen_result]
 
     def computeEigenpairResidual(self, value, vector):
         s = self.SWithConstraints

@@ -137,15 +137,13 @@ def _visualizationDriver(driver, filename, info):
 
 
 
-def visualize(driver, filename, mesh_func):
+def _getVisualizationData(mesh_func):
     # also assign numbers for constrained nodes
     dof_manager = mesh_func.mesh().dofManager()
-    new_number_assignment = element.assignNodeNumbers(dof_manager.constrainedNodes(),
+    new_number_assignment = element.assignNodeNumbers(dof_manager,
                                                       mesh_func.numberAssignment())
 
-    my_mesh_func = mesh_function.tMeshFunction(mesh_func.mesh(), 
-                                               new_number_assignment, 
-                                               mesh_func.vector())
+    my_mesh_func = mesh_func.copy(number_assignment = new_number_assignment)
 
     nonu_lookup = tools.reverseDictionary(new_number_assignment)
 
@@ -156,20 +154,25 @@ def visualize(driver, filename, mesh_func):
 
     for el in mesh_func.mesh().elements():
         el.getVisualizationData(my_mesh_func, vis_data)
+    return vis_data
+
+
+
+
+def visualize(driver, filename, mesh_func):
+    vis_data = _getVisualizationData(mesh_func)
     _visualizationDriver(driver, filename, vis_data.getInfoTuple())
 
 
 
 
-def visualizeSeveralMeshes(driver, filename, offsets_meshes_and_vectors):
+def visualizeSeveralMeshes(driver, filename, offsets_and_mesh_functions):
     nodes = []
     values = []
     triangles = []
     extra_polys = []
-    for offset, mesh, vector in offsets_meshes_and_vectors:
-        vis_data = tVisualizationData(mesh.dofManager(), vector)
-        for el in mesh.elements():
-            el.getVisualizationData(vector, vis_data)
+    for offset, mesh_func in offsets_and_mesh_functions:
+        vis_data = _getVisualizationData(mesh_func)
         my_nodes,my_values,my_triangles,my_extra_polys = vis_data.getInfoTuple()
 
         node_number_offset = len(nodes)

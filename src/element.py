@@ -25,19 +25,7 @@ class tNode(object):
         self.Coordinates = coordinates
         self.Tag = tag
         self.TrackingId = tracking_id
-        self.Constraint = None
         self.ShapeSection = shape_section
-
-    def setConstraint(self, constraint):
-        """A constraint is a datastructure of the following shape:
-
-        intercept, [(coefficient_1, node_2), (coefficient_2, index_2), ...]
-
-        which is evaluated to
-
-        intercept + coefficient_1 * getValue(node_1) + ...
-        """
-        self.Constraint = constraint
 
 
 
@@ -70,27 +58,10 @@ class tDOFManager(object):
     def __getitem__(self, index):
         return self.Nodes[index]
 
-    def constrainedNodes(self):
-        return [node for node in self.Nodes if node.Constraint is not None]
-
-    def unconstrainedNodes(self):
-        return [node for node in self.Nodes if node.Constraint is None]
-
 
 
 
 # tools -----------------------------------------------------------------------
-def getNodeValue(node, number_assignment, vector):
-    if node.Constraint is None:
-        return vector[number_assignment[node]]
-    else:
-        return node.Constraint[0] \
-               + sum([coeff * getNodeValue(other_node, number_assignment, vector)
-                      for coeff, other_node in node.Constraint[1]])
-
-
-
-
 def assignNodeNumbers(node_list, beginning_assignment = {}, next_number = None, increment = 1):
     result = beginning_assignment.copy()
 

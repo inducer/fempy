@@ -1,6 +1,5 @@
 import tools
 import mesh_function
-import element
 import pylinear.matrices as num
 import pylinear.linear_algebra as la
 
@@ -12,10 +11,7 @@ def makeL2ErrorNormSquared(analytic_solution, mesh_func):
     def errorFunctionL2(point, solution_func_value):
       return (analytic_solution(el.transformToReal(point)) - solution_func_value) ** 2
 
-    nuass = mesh_func.numberAssignment()
-    vec = mesh_func.vector()
-    node_values = num.array([element.getNodeValue(node, nuass, vec) 
-                             for node in el.nodes()])
+    node_values = num.array([mesh_func[node] for node in el.nodes()])
     return el.getVolumeIntegralOver(errorFunctionL2, node_values)
   return tools.tFunctionValueCache(result_func)
 
@@ -28,10 +24,7 @@ def makeH1ErrorNormSquared(analytic_solution, grad_analytic_solution, mesh_func)
       return ((analytic_solution(real_point) - solution_func_value) ** 2 \
         + tools.norm2squared(grad - grad_analytic_solution(real_point)))
 
-    nuass = mesh_func.numberAssignment()
-    vec = mesh_func.vector()
-    node_values = num.array([element.getNodeValue(node, nuass, vec) 
-                             for node in el.nodes()])
+    node_values = num.array([mesh_func[node] for node in el.nodes()])
     return el.getVolumeIntegralOver(errorFunctionH1, node_values)
 
   return tools.tFunctionValueCache(result_func)
@@ -44,10 +37,7 @@ def makeEnergyErrorNormSquared(grad_analytic_solution, mesh_func):
 
       return tools.norm2squared(grad - grad_analytic_solution(real_point))
 
-    nuass = mesh_func.numberAssignment()
-    vec = mesh_func.vector()
-    node_values = num.array([element.getNodeValue(node, nuass, vec) 
-                             for node in el.nodes()])
+    node_values = num.array([mesh_func[node] for node in el.nodes()])
     return el.getVolumeIntegralOver(errorFunctionH1, node_values)
 
   return tools.tFunctionValueCache(result_func)

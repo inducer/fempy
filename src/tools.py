@@ -335,11 +335,11 @@ class tSparseVector(tDictionaryWithDefault):
 
     def addToMatrixColumn(self, matrix, column, factor = 1.):
         for key in self:
-            other[key, column] += factor * self[key]
+            matrix[key, column] += factor * self[key]
 
     def addToMatrixRow(self, matrix, row, factor = 1.):
         for key in self:
-            other[row, key] += factor * self[key]
+            matrix[row, key] += factor * self[key]
 
     def conjugate(self):
         result = tSparseVector()

@@ -10,10 +10,19 @@ import tools
 
 
 class tMeshFunction(object):
-    def __init__(self, mesh, number_assignment, vector):
+    def __init__(self, mesh, number_assignment, vector, node_constraints):
         self.Mesh = mesh
         self.NumberAssignment = number_assignment
         self.Vector = vector
+        self.NodeConstraints = node_constraints
+
+    def copy(self, mesh = None, number_assignment = None, vector = None,
+             node_constraints = None):
+        return tMeshFunction(
+            mesh or self.Mesh,
+            number_assignment or self.NumberAssignment,
+            vector or self.Vector,
+            node_constraints or self.NodeConstraints)
 
     # accessors ------------------------------------------------------------------
     def mesh(self):
@@ -25,22 +34,56 @@ class tMeshFunction(object):
     def vector(self):
         return self.Vector
 
+    # operations -----------------------------------------------------------------
+    def conjugate(self):
+        return tMeshFunction(self.Mesh, self.NumberAssignment, 
+                             num.conjugate(self.Vector))
+
+    def __add__(self, other):
+        assert self.Mesh is other.Mesh
+        assert self.NumberAssignment is other.NumberAssignment
+        return tMeshFunction(self.Mesh, self.NumberAssignment, 
+                             self.Vector + other.Vector)
+
+    def __sub__(self, other):
+        assert self.Mesh is other.Mesh
+        assert self.NumberAssignment is other.NumberAssignment
+        return tMeshFunction(self.Mesh, self.NumberAssignment, 
+                             self.Vector - other.Vector)
+
+    def __mul__(self, factor):
+        return self.copy(vector = factor * self.Vector)
+
+    def __rmul__(self, factor):
+        return self.copy(vector = factor * self.Vector)
+
+    def realPart(self):
+        return self.copy(vector = self.Vector.real)
+
+    def imaginaryPart(self):
+        return self.copy(vector = self.Vector.imaginary)
+
+    real = property(realPart)
+    imaginary = property(imaginaryPart)
+
     # value getters --------------------------------------------------------------
     def __getitem__(self, node):
-        return element.getNodeValue(node, self.NumberAssignment, self.Vector)
+        try:
+            constraint = self.NodeConstraints[node]
+            return constraint[0] \
+                   + sum([coeff * getNodeValue(other_node, number_assignment, vector)
+                          for coeff, other_node in constraint[1]])
+        except KeyError:
+            return self.Vector[self.NumberAssignment[node]]
 
     def getValueOnElement(self, el, unit_point):
         ffs = el.formFunctionKit().formFunctions()
         nodes = el.nodes()
 
-        value = ffs[0](unit_point) * element.getNodeValue(nodes[0], 
-                                                          self.NumberAssignment,
-                                                          self.Vector)
+        value = ffs[0](unit_point) * self[nodes[0]]
         
         for ff, node in zip(ffs, nodes)[1:]:
-            value += ff(unit_point) * element.getNodeValue(node,
-                                                           self.NumberAssignment,
-                                                           self.Vector)
+            value += ff(unit_point) * self[node]
         return value
 
     def getGradientOnElement(self, el, unit_point):
