@@ -255,3 +255,48 @@ class tGrid:
 
   def asSequence(self):
     return tLexicographicSequencer(self, [x+1 for x in self._Subdivisions])
+
+
+
+
+class tDictionaryWithDefault:
+  def __init__(self, default_value_generator, start = {}):
+    self._Dictionary = dict(start)
+    self._DefaultGenerator = default_value_generator
+
+  def __getitem__(self, index):
+    try:
+      return self._Dictionary[index]
+    except IndexError:
+      value = self._DefaultGenerator(index)
+      self._Dictionary[index] = value
+      return value
+
+  def __setitem__(self, index, value):
+    self._Dictionary[index] = value
+
+
+
+
+def argmin(f, list):
+  current_min_index = 0
+  current_min = f(list[0])
+
+  for idx, item in indexAnd(list[1:]):
+    value = f(item)
+    if value < current_min:
+      current_min_index = idx
+      current_min = value
+  return current_min_index, current_min
+
+
+
+def enumerateDirections(dimensions):
+  if dimensions == 1:
+    return [ [-1], [1] ]
+  else:
+    result = []
+    d_minus_1 = enumerateDirections(dimensions - 1)
+    for i in -1, 0, 1:
+      result += [[d_minus_1_item]+[i] for d_minus_1_item in d_minus_1]
+    return result
