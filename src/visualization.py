@@ -142,7 +142,7 @@ def _getVisualizationData(mesh_func):
 
     nonu_lookup = tools.reverseDictionary(mesh_func.numberAssignment())
 
-    nodes = [nonu_lookup[nonu] for nonu in range(len(mesh_func.numberAssignment()))]
+    nodes = [nonu_lookup[nonu] for nonu in range(len(dof_manager))]
     node_values = list(mesh_func.vector())
 
     vis_data = tVisualizationData(nodes, node_values)

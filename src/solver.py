@@ -32,12 +32,18 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 def getDirichletConstraints(mesh, u_d):
+    dir_file = file(",,dirichlet.dat", "w")
     constraints = {}
     for node in [node 
                  for node in mesh.dofManager()
                  if node.TrackingId == "dirichlet"]:
         constraints[node] = (u_d(node.Coordinates), [])
+        dir_file.write("%f\t%f\n" % (node.Coordinates[0],
+                                     node.Coordinates[1]))
+
         print "DI!", node.Coordinates, u_d(node.Coordinates)
+    dir_file.close()
+    raw_input()
     return constraints
 
 
@@ -322,7 +328,7 @@ class tLaplacianEigenproblemSolver:
 
         return [(eigenvalue, mesh_function.tMeshFunction(
             self.Mesh,
-            self.NumberAssignment,
+            self.CompleteNumberAssignment,
             mesh_function.makeCompleteVector(self.CompleteNumberAssignment,
                                              eigenvector,
                                              constraints)))
