@@ -2,6 +2,7 @@
 
 import Numeric as num
 import spmatrix as sparse
+import itsolvers
 import math
 
 
@@ -31,7 +32,7 @@ class tMatrixBuilder:
 
   def matrix( self ):
     """The result of this function is, in general, of unspecified type.
-    It will return an object m that will at least support the following
+    However, the returned object will at least support the following
     subset of the numarray interface:
 
       m.shape
@@ -40,9 +41,13 @@ class tMatrixBuilder:
     pass
 
   def forceIdentityMap( self, dof_number ):
-    mat = self.matrix()
-    mat[ :,dof_number ] = 0
-    mat[ dof_number ] = 0
+    mat = self.Matrix
+    w,h = mat.shape
+
+    for i in range( 0, w ):
+      mat[ dof_number, i ] = 0
+    for i in range( 0, h ):
+      mat[ i, dof_number ] = 0
     mat[ dof_number, dof_number ] = 1.
 
 
@@ -56,10 +61,15 @@ class tSymmetricSparseMatrixBuilder( tMatrixBuilder ):
     return self.Matrix
 
   def forceIdentityMap( self, dof_number ):
-    zero = 
-    self.Matrix[ :,dof_number ] = 
-    self.Matrix[ dof_number ] = 0
-    self.Matrix[ dof_number, dof_number ] = 1.
+    mat = self.Matrix
+    w,h = mat.shape
+
+    # FIXME: optimize with slicing syntax
+    for i in range( 0, dof_number ):
+      mat[ dof_number, i ] = 0
+    for i in range( dof_number + 1, h ):
+      mat[ i, dof_number ] = 0
+    mat[ dof_number, dof_number ] = 1.
 
   def add( self, small_matrix, small_matrix_rows, small_matrix_columns = None ):
     self.Matrix.update_add_mask_sym( small_matrix, num.array( small_matrix_rows ) )
@@ -100,6 +110,12 @@ class tDenseMatrixBuilder( tMatrixBuilder ):
     for i in range( 0, len( small_matrix_rows ) ):
       for j in range( 0, len( small_matrix_columns ) ):
 	self.Matrix[ small_matrix_rows[ i ], small_matrix_columns[ j ] ] += small_matrix[ i ][ j ]
+
+  def forceIdentityMap( self, dof_number ):
+    mat = self.Matrix
+    mat[ :,dof_number ] = 0
+    mat[ dof_number ] = 0
+    mat[ dof_number, dof_number ] = 1.
 
 
 
@@ -274,7 +290,7 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny ):
 
 
 # equation solvers ------------------------------------------------------------
-def solvePoisson( dof_manager, elements, f, dirichlet_nodes, u_d = lambda x: 0 ):
+def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 ):
   """Solve the Poisson equation
 
   laplace u = f
@@ -296,6 +312,14 @@ def solvePoisson( dof_manager, elements, f, dirichlet_nodes, u_d = lambda x: 0 )
     s_builder.forceIdentityMap( i )
     b_builder.matrix()[ i ] = -f( node.coordinates() )
 
+  negated_b = b_builder.matrix() * -1
+  compiled_s = s_builder.matrix().to_sss()
+  x = num.zeros( (dof_count,) )
+
+  info, iter, relres = itsolvers.pcg( compiled_s, negated_b, x, 1e-12, dof_count )
+
+  return x
+
 
 
 
@@ -303,6 +327,39 @@ def solvePoisson( dof_manager, elements, f, dirichlet_nodes, u_d = lambda x: 0 )
 # visualization ---------------------------------------------------------------
 # driver ----------------------------------------------------------------------
 def poissonDemo():
-  def f( coord ):
+  width = 1.
+  height = 1.
+  
+  nx = 20
+  ny = 20
 
+  center = num.array( [ width/2, height/2 ] )
+
+  def f( coord ):
+    diff = coord - center
+    if num.dot( diff, diff ) < 0.1:
+      return 0.4
+    else:
+      return 0
+
+  def u_d( coord ):
+    return coord[0]
+
+  dof_manager = tDOFManager()
+  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny )
+
+  # make the corner nodes dirichlet nodes
+  dirichlet_nodes = []
+  dirichlet_nodes.extend( nodes[0] )
+  dirichlet_nodes.extend( nodes[-1] )
+  dirichlet_nodes.extend( map( lambda node_line: node_line[0], nodes[1:-1] ) )
+  dirichlet_nodes.extend( map( lambda node_line: node_line[-1], nodes[1:-1] ) )
+  
+  solution = solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d )
+  
+
+
+
+poissonDemo()
+  
 
