@@ -1,8 +1,10 @@
+import math
 import tools
 import stopwatch
 import element
 import mesh_function
 import pylinear.matrices as num
+import pylinear.matrix_tools as mtools
 import pylinear.algorithms as algo
 
 
@@ -202,7 +204,10 @@ def shiftAndInvertSymmetricEigenproblem(sigma, s_op, m_op,
 
 
 
-def _constraints2uc_contributions(constraints):
+def resolveConstraints(constraints):
+    """Resolves the right hand sides of the constraint equations 
+    to only unconstrained nodes.
+    """
 
     def resolve_to_unconstrained(lincomb_specifier):
         uc_components = [(other_coeff, other_node)
@@ -222,24 +227,23 @@ def _constraints2uc_contributions(constraints):
                     uc_components.append((other_coeff * other2_coeff, other2_node))
         return uc_components
 
-    uc_contributions = tools.tDictionaryWithDefault(lambda x: [])
+    new_constraints = {}
     for node, (offset, lincomb_specifier) in constraints.iteritems():
         assert offset == 0
-        # first, we need to make sure that we can pick out an unconstrained node.
-        # so, we'll resolve all the constrained ones in lincomb_specifier down 
-        # to their unconstrained definitions.
-        uc_components = resolve_to_unconstrained(lincomb_specifier)
+        new_constraints[node] = resolve_to_unconstrained(lincomb_specifier)
 
-        # then, we set up the equation so that there's an unconstrained node
-        # by itself
-        uc_coeff, uc_node = uc_components.pop(0)
-        uc_contributions[uc_node] += [(1/uc_coeff, node)] \
-                                     + [(-other_coeff/uc_coeff, other_node)
-                                        for other_coeff, other_node in uc_components]
-    return uc_contributions
+    return new_constraints
 
-        
-        
+
+
+
+def rayleighQuotient(s, m, vec):
+    sp = mtools.sp
+    mm = num.matrixmultiply
+    return sp(vec, mm(s, vec))/sp(vec, mm(m, vec))
+
+
+
 
 class tLaplacianEigenproblemSolver:
     def __init__(self, mesh, constrained_nodes,
@@ -247,9 +251,6 @@ class tLaplacianEigenproblemSolver:
         """Solve the eigenproblem of the Laplace operator:
         
         laplace u + f * u = g * lambda * u.
-    
-        For the nodes marked with the constraint id "dirichlet",
-        a (boundary) condition of u = 0 is enforced.
         """
 
         self.Mesh = mesh
@@ -276,28 +277,36 @@ class tLaplacianEigenproblemSolver:
                     num.asarray(el.getVolumeIntegralsOverFormFunctions(f), typecode))
             job.done()
 
+        self.CurrentConstraints = None
+        self.ConstrainedSOp = self.ConstrainedMOp = None
+
     def massMatrix(self):
         return self.FullM
 
-    def solve(self, sigma, constraints, number_of_eigenvalues = 20):
+    def currentConstraints(self):
+        return self.CurrentConstraints
+
+    def setupConstraints(self, constraints):
         dof_manager = self.Mesh.dofManager()
         full_dof_count = len(dof_manager)
         dof_count = full_dof_count - len(constraints)
 
-        uc_contributions = _constraints2uc_contributions(constraints)
+        resolved_constraints = resolveConstraints(constraints)
 
-        a = num.zeros((dof_count, full_dof_count), self.FullS.typecode(), num.SparseBuildMatrix)
+        a = num.zeros((dof_count, full_dof_count), self.FullS.typecode(), 
+                      num.SparseBuildMatrix)
         for i in range(dof_count):
             a[i,i] = 1
-        
-        for node, lincomb_specifier in uc_contributions.iteritems():
-            nonu = self.NumberAssignment[node]
-            for coeff, other_node in lincomb_specifier:
-                other_nonu = self.CompleteNumberAssignment[other_node]
-                a[nonu, other_nonu] += coeff
+
+        for c_node, lincomb_specifier in resolved_constraints.iteritems():
+            c_nonu = self.CompleteNumberAssignment[c_node]
+            assert c_node not in self.NumberAssignment
+            for coeff, uc_node in lincomb_specifier:
+                uc_nonu = self.NumberAssignment[uc_node]
+                a[uc_nonu, c_nonu] += coeff
         
         a_ex = num.asarray(a, a.typecode(), num.SparseExecuteMatrix)
-        a_herm_ex = num.hermite(a)
+        a_herm_ex = num.hermite(a_ex)
         a_op = algo.makeMatrixOperator(a_ex)
         a_herm_op = algo.makeMatrixOperator(a_herm_ex)
 
@@ -307,37 +316,54 @@ class tLaplacianEigenproblemSolver:
         m_ex = num.asarray(self.FullM, self.FullM.typecode(), num.SparseExecuteMatrix)
         m_op = algo.makeMatrixOperator(m_ex)
 
-        periodic_s_op = algo.composeMatrixOperators(
+        self.CurrentConstraints = constraints
+        self.ConstrainedSOp = algo.composeMatrixOperators(
             algo.composeMatrixOperators(a_op, s_op),
             a_herm_op)
-
-        periodic_m_op = algo.composeMatrixOperators(
+        self.ConstrainedMOp = algo.composeMatrixOperators(
             algo.composeMatrixOperators(a_op, m_op),
             a_herm_op)
 
-        eigen_result = shiftAndInvertSymmetricEigenproblem(sigma, 
-                                                           periodic_s_op, 
-                                                           periodic_m_op,
-                                                           number_of_eigenvalues)
+    def solve(self, sigma, number_of_eigenvalues = 20, tolerance = 1e-10,
+              warning_threshold = 10):
+        if self.CurrentConstraints is None:
+            raise RuntimeError, "need to set up constraints before solving"
 
-        return [(eigenvalue, mesh_function.tMeshFunction(
+        eigen_result = shiftAndInvertSymmetricEigenproblem(sigma, 
+                                                           self.ConstrainedSOp, 
+                                                           self.ConstrainedMOp,
+                                                           number_of_eigenvalues,
+                                                           tolerance = tolerance)
+
+        result = [(eigenvalue, mesh_function.tMeshFunction(
             self.Mesh,
             self.CompleteNumberAssignment,
             mesh_function.makeCompleteVector(self.CompleteNumberAssignment,
-                                             eigenvector,
-                                             constraints)))
+                                             num.conjugate(eigenvector),
+                                             self.CurrentConstraints)))
                 for eigenvalue, eigenvector in eigen_result]
 
-    def computeEigenpairResidual(self, value, mesh_func):
-        s = self.FullS
-        m = self.FullM
+        # perform some invariant checking
+        if warning_threshold is not None:
+            for evalue, mf in result:
+                if self.computeEigenpairResidual(evalue, mf) > warning_threshold * tolerance:
+                    print "PRECSION WARNING for ARPACK output."
 
-        vector = mesh_func.vector()
+        return result
 
-        if s is None or m is None:
-            raise RuntimeError, "insertConstraints was never called, "+\
-                  "no finalized matrices available."
-        
-        return tools.norm2(
-            num.matrixmultiply(s, vector) 
-            - value * num.matrixmultiply(m, vector))
+
+    def computeEigenpairResidual(self, eigenvalue, mesh_func):
+        if self.CurrentConstraints is None:
+            raise RuntimeError, "need to set up constraints before verifying"
+
+        dof_count = len(self.Mesh.dofManager())- len(self.CurrentConstraints)
+        vector = num.conjugate(mesh_func.vector()[:dof_count])
+
+        def m_sp(x,y): return mtools.sp(x, algo.applyMatrixOperator(
+            self.ConstrainedMOp, y))
+        def m_norm(x): 
+            return math.sqrt(abs(m_sp(x,x)))
+
+        return m_norm(
+            algo.applyMatrixOperator(self.ConstrainedSOp, vector)
+            - eigenvalue * algo.applyMatrixOperator(self.ConstrainedMOp, vector))
