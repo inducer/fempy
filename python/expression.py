@@ -129,6 +129,11 @@ def simplify( expression ):
     return pattern.switch( ruleset, expression )
   
   ruleset = [
+    ("+",("-",VAR),("-",VAR)), lambda x,y: ("-",("+",simplify( x ), simplify( y ))),
+    ("+",VAR,("-",VAR)), lambda x,y: simplify( ("-",simplify( x ),simplify( y ))),
+    ("*",-1.,VAR), lambda x: ("-",simplify( x )),
+    ("*",VAR,-1.), lambda x: ("-", simplify( x )),
+
     ("+",VAR,VAR), simplifyPlus,
     ("-",VAR,VAR), simplifyMinus,
     ("*",VAR,VAR), simplifyTimes,
@@ -140,7 +145,11 @@ def simplify( expression ):
     VAR, lambda x: x
   ]
 
-  return simp( expression )
+  old_expression = None
+  while old_expression != expression:
+    old_expression = expression
+    expression = simp( expression )
+  return expression
 
 
 

@@ -5,6 +5,7 @@ import LinearAlgebra as la
 
 import integration
 import expression
+import form_function as ff
 
 
 
@@ -98,9 +99,11 @@ class tFiniteElement:
 class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
   # form function compilation -------------------------------------------------
   FormFunctionExpressions = [ 
-    ("-",1,("+",("variable","x"),("variable","y"))),
-    ("variable","x"),
-    ("variable","y"),
+    ff.makeFormFunctionExpression( 1, 2, constraints )
+    for constraints in [
+      [ ff.oneAt(0,0),ff.zeroAt(1,0),ff.zeroAt(0,1)],
+      [ ff.zeroAt(0,0),ff.oneAt(1,0),ff.zeroAt(0,1)],
+      [ ff.zeroAt(0,0),ff.zeroAt(1,0),ff.oneAt(0,1)] ]
     ]
 
   FormFunctionCount = len( FormFunctionExpressions )
@@ -233,8 +236,6 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
 	result += self.FormFunctions[ i ]( point ) * node_values[ i ]
       return result
     return f
-
-
 
 
 
