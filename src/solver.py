@@ -196,9 +196,8 @@ def shiftAndInvertSymmetricEigenproblem(sigma, s_op, m_op,
                                                     s_op.typecode()),
         m_op)
     shifted_matrix_op = algo.addMatrixOperators(s_op, neg_sigma_m_op)
-    shifted_matrix_inv_op = algo.makeBiCGSTABMatrixOperator(shifted_matrix_op,
-                                                            shifted_matrix_op.shape[0]*10, 
-                                                            tolerance)
+    shifted_matrix_inv_op = algo.makeBiCGSTABMatrixOperator(
+        shifted_matrix_op, shifted_matrix_op.shape[0]*10, tolerance)
     #shifted_matrix_inv_op.debug_level = 2
 
     op = algo.composeMatrixOperators(shifted_matrix_inv_op, m_op)
@@ -304,6 +303,9 @@ class tLaplacianEigenproblemSolver:
         self.CurrentConstraints = None
         self.ConstrainedSOp = self.ConstrainedMOp = None
 
+    def stiffnessMatrix(self):
+        return num.asarray(self.FullS, self.FullS.typecode(), num.SparseExecuteMatrix)
+
     def massMatrix(self):
         return num.asarray(self.FullM, self.FullM.typecode(), num.SparseExecuteMatrix)
 
@@ -362,6 +364,7 @@ class tLaplacianEigenproblemSolver:
         self.ConstrainedMOp = algo.composeMatrixOperators(
             algo.composeMatrixOperators(a_op, m_op),
             a_herm_op)
+        return a
 
     def solve(self, sigma, number_of_eigenvalues = 20, tolerance = 1e-10,
               warning_threshold = 10):

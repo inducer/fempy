@@ -248,4 +248,50 @@ def visualize1DMeshFunction(mf, filename):
         print >> gnuplot_file, "%f\t%f" % (n.Coordinates[0], mf[n])
 
 
-    
+def _visualize2DGridDataVTK(major_grid, minor_grid, data, filename, 
+                            scale_major = 1., scale_minor = 1.):
+    import pyvtk
+
+    points = [(scale_major * x,scale_minor * y,0) for x in major_grid for y in minor_grid]
+    structure = pyvtk.StructuredGrid((len(minor_grid), len(major_grid), 1), points)
+        
+    flat_data = []
+    for i in data:
+        flat_data += i
+    pointdata = pyvtk. PointData(
+        pyvtk. Scalars(flat_data, name="node_data", lookup_table = "default"))
+
+    vtk = pyvtk.VtkData(structure, "grid data", pointdata)
+    vtk.tofile(filename, "ascii")
+
+
+def _visualize2DGridDataGnuplot(major_grid, minor_grid, data, filename, 
+                                scale_major = 1., scale_minor = 1.):
+    gpfile = file(filename, "w")
+
+    def writeNode(imajor, iminor):
+        gpfile.write("%f\t%f\t%f\n" % (major_grid[imajor] * scale_major, 
+                                         minor_grid[iminor] * scale_minor,
+                                         data[imajor][iminor]))
+
+    for ix in range(len(major_grid)-1):
+        for iy in range(len(minor_grid)-1):
+            writeNode(ix, iy)
+            writeNode(ix+1, iy)
+            writeNode(ix+1, iy+1)
+            writeNode(ix, iy+1)
+            #writeNode(ix, iy)
+            gpfile.write("\n\n")
+            
+
+
+
+def visualize2DGridData(driver, major_grid, minor_grid, data, filename, 
+                        scale_major = 1., scale_minor = 1.):
+    if driver == "vtk":
+        _visualize2DGridDataVTK(major_grid, minor_grid, data, filename,
+                                scale_major, scale_minor)
+    elif driver == "gnuplot":
+        _visualize2DGridDataGnuplot(major_grid, minor_grid, data, filename,
+                                    scale_major, scale_minor)
+

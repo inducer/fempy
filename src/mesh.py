@@ -25,6 +25,14 @@ class tShapeGuide:
     self.RenderFinalPoint = render_final_point
     self.UseExactElements = use_exact_elements
 
+  def endPoint(self):
+    a,b = self.Interval
+    if self.RenderFinalPoint:
+      return self.evaluateToVector(b)
+    else:
+      h = float(b-a)/self.InitialPointCount
+      return self.evaluateToVector(a+h*(self.InitialPointCount-1))
+
   def evaluate(self, non_deform_coord):
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
 
@@ -70,8 +78,7 @@ class tShapeSection:
             return True
         if i.containsPoint(point, relative_threshold):
           return True
-        a,b = i.Interval
-        last_point = i.evaluateToVector(b)
+        last_point = i.endPoint()
       else:
         if last_point is not None:
           dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
