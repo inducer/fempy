@@ -20,7 +20,7 @@ def ispos(x):
 
 def _matchRuleSet(ruleset, expression):
     try:
-        return ruleset[expression[0], len(expression)-1](*expression[1:])
+        return ruleset[expression[0]](*expression[1:])
     except TypeError:
         return ruleset[None](expression)
 
@@ -32,19 +32,19 @@ def evaluate(expression, variable_assignments = {}):
         return _matchRuleSet(ruleset, expression)
 
     ruleset = {
-        (eo.PLUS,2): lambda x,y: ev(x)+ev(y),
-        (eo.MINUS,2): lambda x,y: ev(x)-ev(y),
-        (eo.TIMES,2): lambda x,y: ev(x)*ev(y),
-        (eo.DIVIDE,2): lambda x,y: ev(x)/ev(y),
-        (eo.POWER,2): lambda x,y: ev(x)**ev(y),
-        (eo.NEG,1): lambda x: -ev(x),
-        (eo.SIN,1): lambda x: math.sin(ev(x)),
-        (eo.COS,1): lambda x: math.cos(ev(x)),
-        (eo.TAN,1): lambda x: math.tan(ev(x)),
-        (eo.LOG,1): lambda x: math.log(ev(x)),
-        (eo.EXP,1): lambda x: math.exp(ev(x)),
-        (eo.ISPOS,1): lambda x: ispos(ev(x)),
-        (eo.VARIABLE,1): lambda x: variable_assignments[x],
+        eo.PLUS: lambda x,y: ev(x)+ev(y),
+        eo.MINUS: lambda x,y: ev(x)-ev(y),
+        eo.TIMES: lambda x,y: ev(x)*ev(y),
+        eo.DIVIDE: lambda x,y: ev(x)/ev(y),
+        eo.POWER: lambda x,y: ev(x)**ev(y),
+        eo.NEG: lambda x: -ev(x),
+        eo.SIN: lambda x: math.sin(ev(x)),
+        eo.COS: lambda x: math.cos(ev(x)),
+        eo.TAN: lambda x: math.tan(ev(x)),
+        eo.LOG: lambda x: math.log(ev(x)),
+        eo.EXP: lambda x: math.exp(ev(x)),
+        eo.ISPOS: lambda x: ispos(ev(x)),
+        eo.VARIABLE: lambda x: variable_assignments[x],
         None: lambda x: x 
         }
 
@@ -55,7 +55,7 @@ def evaluate(expression, variable_assignments = {}):
 
 def substitute(expression, variable_assignments = {}):
     def subs(expression):
-        return pattern.switch(ruleset, expression)
+        return _matchRuleSet(ruleset, expression)
 
     def substituteVariable(var_id):
         try:
@@ -63,22 +63,22 @@ def substitute(expression, variable_assignments = {}):
         except KeyError:
             return (eo.VARIABLE, var_id)
 
-    ruleset = [
-        ("+",VAR,VAR), lambda x,y: (eo.PLUS,subs(x),subs(y)),
-        ("-",VAR,VAR), lambda x,y: (eo.MINUS,subs(x),subs(y)),
-        ("*",VAR,VAR), lambda x,y: (eo.TIMES,subs(x),subs(y)),
-        ("/",VAR,VAR), lambda x,y: (eo.DIVIDE,subs(x),subs(y)),
-        ("**",VAR,VAR), lambda x,y: (eo.POWER,subs(x),subs(y)),
-        ("negate",VAR) , lambda x: (eo.NEG,subs(x)),
-        ("sin",VAR), lambda x: (eo.SIN,subs(x)),
-        ("cos",VAR), lambda x: (eo.COS,subs(x)),
-        ("tan",VAR), lambda x: (eo.TAN,subs(x)),
-        ("log",VAR), lambda x: (eo.LOG,subs(x)),
-        ("exp",VAR), lambda x: (eo.EXP,subs(x)),
-        ("ispos",VAR), lambda x: (eo.ISPOS,subs(x)),
-        ("variable",VAR), substituteVariable,
-        VAR, lambda x: x 
-        ]
+    ruleset = {
+        eo.PLUS: lambda x,y: (eo.PLUS,subs(x),subs(y)),
+        eo.MINUS: lambda x,y: (eo.MINUS,subs(x),subs(y)),
+        eo.TIMES: lambda x,y: (eo.TIMES,subs(x),subs(y)),
+        eo.DIVIDE: lambda x,y: (eo.DIVIDE,subs(x),subs(y)),
+        eo.POWER: lambda x,y: (eo.POWER,subs(x),subs(y)),
+        eo.NEG: lambda x: (eo.NEG,subs(x)),
+        eo.SIN: lambda x: (eo.SIN,subs(x)),
+        eo.COS: lambda x: (eo.COS,subs(x)),
+        eo.TAN: lambda x: (eo.TAN,subs(x)),
+        eo.LOG: lambda x: (eo.LOG,subs(x)),
+        eo.EXP: lambda x: (eo.EXP,subs(x)),
+        eo.ISPOS: lambda x: (eo.ISPOS,subs(x)),
+        eo.VARIABLE: substituteVariable,
+        None: lambda x: x 
+        }
 
     substituted = subs(expression)
     if substituted != expression:
@@ -101,7 +101,7 @@ def isConstant(expression, wrt = None):
     are assumed "non-constant".
     """
     def isc(expression):
-        return pattern.switch(ruleset, expression)
+        return _matchRuleSet(ruleset, expression)
 
     def isVarConstant(x):
         if wrt:
@@ -109,22 +109,22 @@ def isConstant(expression, wrt = None):
         else:
             return False
         
-    ruleset = [
-        ("+",VAR,VAR), lambda x,y: isc(x) and isc(y),
-        ("-",VAR,VAR), lambda x,y: isc(x) and isc(y),
-        ("*",VAR,VAR), lambda x,y: isc(x) and isc(y),
-        ("/",VAR,VAR), lambda x,y: isc(x) and isc(y),
-        ("**",VAR,VAR), lambda x,y: isc(x) and isc(y),
-        (eo.NEG,VAR) , lambda x: isc(x),
-        ("sin",VAR), lambda x: isc(x),
-        ("cos",VAR), lambda x: isc(x),
-        ("tan",VAR), lambda x: isc(x),
-        ("log",VAR), lambda x: isc(x),
-        ("exp",VAR), lambda x: isc(x),
-        ("ispos",VAR), lambda x: isc(x),
-        ("variable",VAR), isVarConstant,
-        VAR, lambda x: True
-        ]
+    ruleset = {
+        eo.PLUS: lambda x,y: isc(x) and isc(y),
+        eo.MINUS: lambda x,y: isc(x) and isc(y),
+        eo.TIMES: lambda x,y: isc(x) and isc(y),
+        eo.DIVIDE: lambda x,y: isc(x) and isc(y),
+        eo.POWER: lambda x,y: isc(x) and isc(y),
+        eo.NEG: lambda x: isc(x),
+        eo.SIN: lambda x: isc(x),
+        eo.COS: lambda x: isc(x),
+        eo.TAN: lambda x: isc(x),
+        eo.LOG: lambda x: isc(x),
+        eo.EXP: lambda x: isc(x),
+        eo.ISPOS: lambda x: isc(x),
+        eo.VARIABLE: isVarConstant,
+        None: lambda x: True
+        }
 
     return isc(expression)
 
@@ -165,20 +165,20 @@ def differentiate(expression, variable):
                     (eo.POWER, g, 2))
 
     ruleset = {
-        (eo.PLUS,2): lambda x,y: (eo.PLUS, diff(x), diff(y)),
-        (eo.MINUS,2): lambda x,y: (eo.MINUS, diff(x), diff(y)),
-        (eo.TIMES,2): diffMultiplication,
-        (eo.DIVIDE,2): diffDivision,
+        eo.PLUS: lambda x,y: (eo.PLUS, diff(x), diff(y)),
+        eo.MINUS: lambda x,y: (eo.MINUS, diff(x), diff(y)),
+        eo.TIMES: diffMultiplication,
+        eo.DIVIDE: diffDivision,
         # This assumes that the exponent is constant.
-        (eo.POWER,2): lambda x,y: (eo.TIMES,y,(eo.TIMES,(eo.POWER,x,y-1),diff(x))),
-        (eo.NEG,1): lambda x: (eo.NEG,diff(x)),
-        (eo.SIN,1): lambda x: (eo.TIMES, diff(x), (eo.COS,x)),
-        (eo.COS,1): lambda x: (eo.TIMES, (eo.NEG, diff(x)), (eo.SIN,x)),
-        (eo.TAN,1): lambda x: (eo.TIMES, diff(x), (eo.PLUS, 1, (eo.POWER, (eo.TAN, x), 2))),
-        (eo.LOG,1): lambda x: (eo.TIMES, diff(x), (eo.DIVIDE, 1, x)),
-        (eo.EXP,1): lambda x: (eo.TIMES, diff(x), (eo.EXP, x)),
-        (eo.ISPOS,1): ispos_diff,
-        (eo.VARIABLE,1): diffVariable,
+        eo.POWER: lambda x,y: (eo.TIMES,y,(eo.TIMES,(eo.POWER,x,y-1),diff(x))),
+        eo.NEG: lambda x: (eo.NEG,diff(x)),
+        eo.SIN: lambda x: (eo.TIMES, diff(x), (eo.COS,x)),
+        eo.COS: lambda x: (eo.TIMES, (eo.NEG, diff(x)), (eo.SIN,x)),
+        eo.TAN: lambda x: (eo.TIMES, diff(x), (eo.PLUS, 1, (eo.POWER, (eo.TAN, x), 2))),
+        eo.LOG: lambda x: (eo.TIMES, diff(x), (eo.DIVIDE, 1, x)),
+        eo.EXP: lambda x: (eo.TIMES, diff(x), (eo.EXP, x)),
+        eo.ISPOS: ispos_diff,
+        eo.VARIABLE: diffVariable,
         None: lambda x: 0.
         }
 
@@ -249,20 +249,20 @@ def simplify(expression):
         #("*",-1.,VAR), lambda x: ("-",simplify(x)),
         #("*",VAR,-1.), lambda x: ("-", simplify(x)),
         
-        (eo.PLUS,2): simplifyPlus,
-        (eo.MINUS,2): simplifyMinus,
-        (eo.TIMES,2): simplifyTimes,
-        (eo.DIVIDE,2): simplifyDivision,
+        eo.PLUS: simplifyPlus,
+        eo.MINUS: simplifyMinus,
+        eo.TIMES: simplifyTimes,
+        eo.DIVIDE: simplifyDivision,
         # This assumes that the exponent is constant.
-        (eo.POWER,2): simplifyPower,
-        (eo.NEG,1): lambda x: (eo.NEG,simp(x)),
-        (eo.SIN,1): lambda x: (eo.SIN,simp(x)),
-        (eo.COS,1): lambda x: (eo.COS,simp(x)),
-        (eo.TAN,1): lambda x: (eo.TAN,simp(x)),
-        (eo.LOG,1): lambda x: (eo.LOG,simp(x)),
-        (eo.EXP,1): lambda x: (eo.EXP,simp(x)),
-        (eo.ISPOS,1): lambda x: (eo.ISPOS,simp(x)),
-        (eo.VARIABLE,1): lambda x: (eo.VARIABLE,x),
+        eo.POWER: simplifyPower,
+        eo.NEG: lambda x: (eo.NEG,simp(x)),
+        eo.SIN: lambda x: (eo.SIN,simp(x)),
+        eo.COS: lambda x: (eo.COS,simp(x)),
+        eo.TAN: lambda x: (eo.TAN,simp(x)),
+        eo.LOG: lambda x: (eo.LOG,simp(x)),
+        eo.EXP: lambda x: (eo.EXP,simp(x)),
+        eo.ISPOS: lambda x: (eo.ISPOS,simp(x)),
+        eo.VARIABLE: lambda x: (eo.VARIABLE,x),
         None: lambda x: x
         }
     
@@ -282,19 +282,19 @@ def infixify(expression, variable_substitutions = {}):
         return _matchRuleSet(ruleset, expr)
 
     ruleset = {
-        (eo.PLUS,2): lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
-        (eo.MINUS,2): lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
-        (eo.TIMES,2): lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
-        (eo.DIVIDE,2): lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
-        (eo.POWER,2): lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
-        (eo.NEG,1): lambda x: "(-%s)"  % pythonify(x),
-        (eo.SIN,1): lambda x: "sin(%s)"  % pythonify(x),
-        (eo.COS,1): lambda x: "cos(%s)"  % pythonify(x),
-        (eo.TAN,1): lambda x: "tan(%s)"  % pythonify(x),
-        (eo.LOG,1): lambda x: "log(%s)"  % pythonify(x),
-        (eo.EXP,1): lambda x: "exp(%s)"  % pythonify(x),
-        (eo.ISPOS,1): lambda x: "ispos(%s)"  % pythonify(x),
-        (eo.VARIABLE,1): lambda x:"%s" % str(substitute(x)),
+        eo.PLUS: lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
+        eo.MINUS: lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
+        eo.TIMES: lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
+        eo.DIVIDE: lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
+        eo.POWER: lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
+        eo.NEG: lambda x: "(-%s)"  % pythonify(x),
+        eo.SIN: lambda x: "sin(%s)"  % pythonify(x),
+        eo.COS: lambda x: "cos(%s)"  % pythonify(x),
+        eo.TAN: lambda x: "tan(%s)"  % pythonify(x),
+        eo.LOG: lambda x: "log(%s)"  % pythonify(x),
+        eo.EXP: lambda x: "exp(%s)"  % pythonify(x),
+        eo.ISPOS: lambda x: "ispos(%s)"  % pythonify(x),
+        eo.VARIABLE: lambda x:"%s" % str(substitute(x)),
         None: lambda x: str(x)
         }    
 
@@ -325,19 +325,19 @@ class tCompiledExpression:
             return _matchRuleSet(ruleset, expr)
 
         ruleset = {
-            (eo.PLUS,2): lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
-            (eo.MINUS,2): lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
-            (eo.TIMES,2): lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
-            (eo.DIVIDE,2): lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
-            (eo.POWER,2): lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
-            (eo.NEG,1): lambda x: "(-%s)"  % pythonify(x),
-            (eo.SIN,1): lambda x: "math.sin(%s)"  % pythonify(x),
-            (eo.COS,1): lambda x: "math.cos(%s)"  % pythonify(x),
-            (eo.TAN,1): lambda x: "math.tan(%s)"  % pythonify(x),
-            (eo.LOG,1): lambda x: "math.log(%s)"  % pythonify(x),
-            (eo.EXP,1): lambda x: "math.exp(%s)"  % pythonify(x),
-            (eo.ISPOS,1): lambda x: "ispos(%s)"  % pythonify(x),
-            (eo.VARIABLE,1): addVariable,
+            eo.PLUS: lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
+            eo.MINUS: lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
+            eo.TIMES: lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
+            eo.DIVIDE: lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
+            eo.POWER: lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
+            eo.NEG: lambda x: "(-%s)"  % pythonify(x),
+            eo.SIN: lambda x: "math.sin(%s)"  % pythonify(x),
+            eo.COS: lambda x: "math.cos(%s)"  % pythonify(x),
+            eo.TAN: lambda x: "math.tan(%s)"  % pythonify(x),
+            eo.LOG: lambda x: "math.log(%s)"  % pythonify(x),
+            eo.EXP: lambda x: "math.exp(%s)"  % pythonify(x),
+            eo.ISPOS: lambda x: "ispos(%s)"  % pythonify(x),
+            eo.VARIABLE: addVariable,
             None: lambda x: str(x)
             }
 
