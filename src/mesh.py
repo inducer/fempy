@@ -105,12 +105,11 @@ class tMeshChange:
     the "after" mesh, which it returns. The "after" mesh is assumed to be
     in the generated state at the point of the call.
     """
-    finder = self.MeshBefore.findElement
     dofm = self.MeshAfter.dofManager()
     after = num.zeros((self.MeshAfter.dofManager().countDegreesOfFreedom(),), 
       before_solution_vector.typecode())
     for node in self.MeshAfter.nodes():
-      before_el = finder(node.coordinates())
+      before_el = self.MeshBefore.findElement(node.coordinates())
       if before_el is not None:
         after[dofm.getDegreeOfFreedomNumber(node)] = \
           before_el.getSolutionFunction(before_solution_vector)(node.coordinates())

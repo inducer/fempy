@@ -1,4 +1,5 @@
 import time
+import tools
 
 
 
@@ -28,11 +29,29 @@ class tStopWatch:
 
 class tJob:
   def __init__(self, name):
-    print "%s..." % name
     self.Name = name
     self.StopWatch = tStopWatch().start()
+    if self.isVisible():
+      print "%s..." % name
 
   def done(self):
     elapsed = self.StopWatch.elapsed()
-    print " " * (len(self.Name) + 2), elapsed, "seconds"
+    JOB_TIMES[self.Name] += elapsed
+    if self.isVisible():
+      print " " * (len(self.Name) + 2), elapsed, "seconds"
+  
+  def isVisible(self):
+    if PRINT_JOBS.get():
+      return not self.Name in HIDDEN_JOBS
+    else:
+      return self.Name in VISIBLE_JOBS
 
+
+
+
+
+
+HIDDEN_JOBS = []
+VISIBLE_JOBS = []
+JOB_TIMES = tools.tDictionaryWithDefault(lambda x: 0)
+PRINT_JOBS = tools.tReference(True)

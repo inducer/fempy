@@ -60,9 +60,9 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
 
   
 def visualize(mesh, vector):
-  #visualization.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), vector)
-  #visualization.writeGnuplotFile(",,result.dat", mesh.dofManager(), mesh.elements(), vector)
-  visualization.writeVtkFile(",,result.vtk", ",,result_grid.vtk", mesh.dofManager(), mesh.elements(), vector)
+  #visualization.visualize("gnuplot", ",,result.data", mesh, vector)
+  #visualization.visualize("matlab", "/tmp/visualize.m", mesh, vector)
+  visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), mesh, vector)
 
 
 

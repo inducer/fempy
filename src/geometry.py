@@ -1,6 +1,5 @@
 import math
 import fempy.mesh as mesh
-import pylinear.matrices as num
 
 
 

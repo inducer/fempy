@@ -2,7 +2,6 @@ from matrix_builder import *
 from stopwatch import *
 from tools import *
 import pylinear.algorithms as algo
-import visualization
 
 
 
@@ -86,7 +85,6 @@ def shiftAndInvertEigenproblem(sigma, s, m,
                                tolerance = 1e-10,
                                max_iterations = 0):
 
-  compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   compiled_m = num.asarray(m, m.typecode(), num.SparseExecuteMatrix)
 
   m_op = algo.makeMatrixOperator(compiled_m)
@@ -104,7 +102,7 @@ def shiftAndInvertEigenproblem(sigma, s, m,
                            algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)
   job.done()
   
-  return results
+  return zip(results.RitzValues, results.RitzVectors)
 
 
 
@@ -180,8 +178,15 @@ class tLaplacianEigenproblemSolver:
     job.done()
 
   def solve(self, sigma, number_of_eigenvalues = 20, number_of_arnoldi_vectors = 40):
-    return shiftAndInvertEigenproblem(sigma, 
-                                      self._SBuilder.matrix(), 
-                                      self._MBuilder.matrix(),
-                                      number_of_eigenvalues = number_of_eigenvalues,
-                                      number_of_arnoldi_vectors = number_of_arnoldi_vectors)
+    s = self._SBuilder.matrix()
+    m = self._MBuilder.matrix()
+
+    return shiftAndInvertEigenproblem(sigma, s, m,
+                                        number_of_eigenvalues = number_of_eigenvalues,
+                                        number_of_arnoldi_vectors = number_of_arnoldi_vectors)
+
+  def computeEigenpairResidual(self, value, vector):
+    return tools.norm2(
+      num.matrixmultiply(self._SBuilder.matrix(), vector) 
+      - value * num.matrixmultiply(self._MBuilder.matrix(), vector))
+

@@ -1,15 +1,14 @@
 import pattern
-from pattern import VAR
-import types
 import pylinear.matrices as num
 import math
+
+VAR = pattern.VAR
 
 
 
 
 def ispos(x):
-  value = ev(x)
-  if value > 0:
+  if x > 0:
     return 1
   else:
     return 0
@@ -264,8 +263,6 @@ def simplify(expression):
 
 
 def infixify(expression, variable_substitutions = {}):
-  determined_variables = []
-
   def substitute(var):
     try:
       return variable_substitutions[var]

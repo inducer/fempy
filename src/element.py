@@ -64,7 +64,7 @@ class tDOFManager:
     return len(self._NumberToNode)
 
   def __getitem__(self, index):
-    return self._NumberToTag[index]
+    return self._NumberToNode[index]
 
   def constrainedNodes(self):
     return self._ConstrainedNodes
@@ -343,7 +343,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return self.Area
 
   def boundingBox(self):
-    coords = [ node.coordinates() for node in self.NodeTags[:3] ]
+    coords = [node.Coordinates for node in self.Nodes]
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):

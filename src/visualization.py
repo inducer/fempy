@@ -1,5 +1,4 @@
 import pylinear.matrices as num
-import tools
 
 
 
@@ -45,7 +44,7 @@ class tVisualizationData:
 
 
 
-def compileInfo(dof_manager, elements, node_data):
+def _compileInfo(elements, node_data):
   node_number_map = {}
   nodes = []
   values = []
@@ -85,7 +84,7 @@ def compileInfo(dof_manager, elements, node_data):
 
 
 
-def writeGnuplotFile(name, name_grid, dof_manager, elements, node_data):
+def _writeGnuplotFile(name, info):
   gnuplot_file = file(name, "w")
 
   def writeNode(node):
@@ -94,7 +93,7 @@ def writeGnuplotFile(name, name_grid, dof_manager, elements, node_data):
 	nodes[node][1],
 	values[node]))
 
-  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = info
   for tri_nodes in triangles:
     for node in tri_nodes:
       writeNode(node)
@@ -104,10 +103,10 @@ def writeGnuplotFile(name, name_grid, dof_manager, elements, node_data):
 
 
 
-def writeVtkFile(name, name_grid, dof_manager, elements, node_data):
+def _writeVtkFile(name, name_grid, info):
   import pyvtk
 
-  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = info
 
   my_nodes = []
   for node in nodes:
@@ -127,7 +126,7 @@ def writeVtkFile(name, name_grid, dof_manager, elements, node_data):
 
 
 
-def writeMatlabFile(name, dof_manager, elements, node_data):
+def _writeMatlabFile(name, info):
   m_file = file(name, "w")
 
   def writeMatlabVector(name, data):
@@ -154,7 +153,7 @@ def writeMatlabFile(name, dof_manager, elements, node_data):
 	    m_file.write("%f" % data[ i,j ])
     m_file.write("];\n")
 
-  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = info
 
   coords = num.array(nodes)
 
@@ -176,7 +175,54 @@ def writeMatlabFile(name, dof_manager, elements, node_data):
 
 
 
+def _visualizationDriver(driver, filename, info):
+  if driver == "gnuplot":
+    _writeGnuplotFile(filename, info)
+  elif driver == "matlab":
+    _writeMatlabFile(filename, info)
+  elif driver == "vtk":
+    file_main, file_grid = filename
+    _writeVtkFile(file_main, file_grid, info)
+  else:
+    raise RuntimeError, "invalid visualization driver: %s" % driver
+
+
+
+
+def visualize(driver, filename, mesh, vector):
+  _visualizationDriver(driver, filename, 
+                       _compileInfo(mesh.elements(), vector))
+
+
+
+
+def visualizeSeveralMeshes(driver, filename, offsets_meshes_and_vectors):
+  nodes = []
+  values = []
+  triangles = []
+  extra_polys = []
+  for offset, mesh, vector in offsets_meshes_and_vectors:
+    my_nodes,my_values,my_triangles,my_extra_polys = _compileInfo(mesh.elements(), vector)
+    node_number_offset = len(nodes)
+
+    def remap_node_numbers(poly_spec):
+      return [[i+node_number_offset for i in node_number_list] 
+              for node_number_list in poly_spec]
+
+    triangles += remap_node_numbers(my_triangles)
+    extra_polys += remap_node_numbers(my_extra_polys)
+    values += my_values
+    nodes += [node + offset for node in my_nodes]
+
+  info = (nodes, values, triangles, extra_polys)
+  _visualizationDriver(driver, filename, info)
+
+
+
+
+
 def visualizePerElementData(name, visualizer, mesh, func_on_elements):
+  raise RuntimeError, "broken"
   node_to_element_hash = {}
   for el in mesh.elements():
     for node in el.nodes():
