@@ -5,7 +5,6 @@ import LinearAlgebra as la
 import spmatrix as sparse
 import itsolvers
 import math
-import pyvtk
 import integration
 import expression
 import integration
@@ -478,6 +477,8 @@ def writeGnuplotFile( name, nodes, dof_manager, solution ):
 	solution[ dof_manager.obtainDegreeOfFreedom( node ) ] ) )
 
 def writeVtkFile( name, dof_manager, elements, solution ):
+  import pyvtk
+
   dof_count = dof_manager.countDegreesOfFreedom()
 
   points_list = []
@@ -504,13 +505,71 @@ def writeVtkFile( name, dof_manager, elements, solution ):
 
 
 
+def writeMatlabFile( name, dof_manager, elements, solution ):
+  m_file = file( name, "w" )
+
+  def writeMatlabVector( name, data ):
+    (h,) = data.shape
+    m_file.write( "%s = [\n" % name )
+    for i in range( 0,h ):
+      if i != h-1:
+	m_file.write( "%f;\n" % data[ i ] )
+      else:
+	m_file.write( "%f" % data[ i ] )
+    m_file.write( "];\n" )
+
+  def writeMatlabMatrix( name, data ):
+    (h,w) = data.shape
+    m_file.write( "%s = [\n" % name )
+    for i in range( 0,h ):
+      for j in range( 0,w ):
+	if j != w-1:
+	  m_file.write( "%f," % data[ i,j ] )
+	else:
+	  if i != h-1:
+	    m_file.write( "%f;\n" % data[ i,j ] )
+	  else:
+	    m_file.write( "%f" % data[ i,j ] )
+    m_file.write( "];\n" )
+
+  writeMatlabVector( "solution", solution )
+
+  dof_count = dof_manager.countDegreesOfFreedom()
+  
+  x = num.zeros( (dof_count,), num.Float )
+  y = num.zeros( (dof_count,), num.Float )
+
+  for i in range( 0, dof_count ):
+    coords = dof_manager.getDegreeOfFreedomIdentifier( i ).coordinates()
+    x[ i ] = coords[ 0 ]
+    y[ i ] = coords[ 1 ]
+
+  writeMatlabVector( "x", x )
+  writeMatlabVector( "y", y )
+	  
+  tris = num.zeros( (len(elements),3), num.Float )
+
+  el_index = 0
+  for el in elements:
+    tris[ el_index ] = num.array( el.nodeNumbers() )
+    el_index += 1
+
+  tris += num.ones( tris.shape, num.Float )
+
+  writeMatlabMatrix( "tris", tris ) 
+
+  m_file.write( "trisurf( tris, x, y, solution )" )
+
+
+
+
 # driver ----------------------------------------------------------------------
 def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 100
-  ny = 100
+  nx = 40
+  ny = 40
 
   center = num.array( [ width/2, height/2 ] )
 
@@ -538,7 +597,8 @@ def poissonDemo():
   
   solution = solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d )
 
-  writeVtkFile( "+result.vtk", dof_manager, elements, solution )
+  writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  #writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
 
