@@ -135,7 +135,7 @@ class tFiniteGrid(tGrid):
     def __iter__(self):
         return iter(self.asSequence().getAllIndices())
 
-    def iterkeys():
+    def iterkeys(self):
         return self.__iter__()
 
     def gridPointCounts(self):
@@ -338,7 +338,7 @@ def getParallelogramVolume(vectors):
 
 
 def unitVector(i, dim, typecode = num.Float):
-    uvec = num.zeros((dim,), num.Float)
+    uvec = num.zeros((dim,), typecode)
     uvec[i] = 1
     return uvec
 
@@ -443,6 +443,42 @@ class tLinearSystemOfEquations:
 
 
 
+def write1DGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
+    h = float(b - a)/steps
+    gnuplot_file = file(fname, "w")
+
+    def do_plot(func):
+        for n in range(steps):
+            if progress:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            x = a + h * n
+            gnuplot_file.write("%f\t%f\n" % (x, func(x)))
+
+    do_plot(f)
+    if progress:
+        sys.stdout.write("\n")
+
+def write1DGnuplotGraphs(f, a, b, steps = 100, fnames = None, progress = False):
+    h = float(b - a)/steps
+    if not fnames:
+        result_count = len(f(a))
+        fnames = [",,f%d.data" % i for i in range(result_count)]
+
+    gnuplot_files = [file(fname, "w") for fname in fnames]
+
+    for n in range(steps):
+        if progress:
+            sys.stdout.write(".")
+            sys.stdout.flush()
+        x = a + h * n
+        for gpfile, y in zip(gnuplot_files, f(x)):
+            gpfile.write("%f\t%f\n" % (x, y))
+    if progress:
+        sys.stdout.write("\n")
+
+
+
 def writeGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
     h = float(b - a)/steps
     gnuplot_file = file(fname, "w")
@@ -492,6 +528,15 @@ def sumOver(function, arguments):
 
 def generalSum(sequence):
     return reduce(operator.add, sequence)
+
+
+
+
+def linearCombination(coefficients, vectors):
+    result = coefficients[0] * vectors[0]
+    for c,v in zip(coefficients, vectors)[1:]:
+        result += c*v
+    return result
 
 
 
@@ -559,7 +604,7 @@ def argmax(list, f = lambda x: x):
         if value > current_max:
             current_max_index = idx
             current_max = value
-    return current_min_index+1
+    return current_max_index+1
 
 
 
@@ -594,6 +639,28 @@ def reverseDictionary(the_dict):
         result[value] = key
     return result
 
+
+
+
+def generateIntegerTuplesBelow(n, length, least = 0):
+    assert length >= 0
+    if length == 0:
+        yield []
+    else:
+        for i in range(least, n):
+            for base in generateIntegerTuplesBelow(n, length-1, least):
+                yield [i] + base
+
+def generateAllIntegerTuples(length, least = 0):
+    assert length >= 0
+    current_max = least
+    while True:
+        for max_pos in range(length):
+            for prebase in generateIntegerTuplesBelow(current_max, max_pos, least):
+                for postbase in generateIntegerTuplesBelow(current_max+1, length-max_pos-1, least):
+                    yield prebase + [current_max] + postbase
+        current_max += 1
+            
 
 
 
