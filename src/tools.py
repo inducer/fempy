@@ -14,7 +14,7 @@ delta = mtools.delta
 
 
 # Data structures ------------------------------------------------------------
-class tReference:
+class tReference(object):
     def __init__( self, value ):
         self.V = value
     def get( self ):
@@ -25,7 +25,7 @@ class tReference:
 
 
 
-class tFunctionValueCache:
+class tFunctionValueCache(object):
     def __init__(self, function):
         self.Function = function
         self.ResultMap = {}
@@ -41,7 +41,7 @@ class tFunctionValueCache:
     
 
 
-class tLexicographicSequencer:
+class tLexicographicSequencer(object):
     def __init__(self, container, limits):
         self._Container = container
         self._Dimensions = [high-low for low, high in limits]
@@ -70,7 +70,7 @@ class tLexicographicSequencer:
   
 
 
-class tGrid:
+class tGrid(object):
     def __init__(self, origin, grid_vectors):
         self._Origin = origin
         self._GridVectors = grid_vectors
@@ -167,7 +167,7 @@ def makeSubdivisionGrid(origin, grid_vectors, limits):
 
 
 
-class tDictionaryWithDefault:
+class tDictionaryWithDefault(object):
     def __init__(self, default_value_generator, start = {}):
         self._Dictionary = dict(start)
         self._DefaultGenerator = default_value_generator
@@ -183,10 +183,18 @@ class tDictionaryWithDefault:
     def __setitem__(self, index, value):
         self._Dictionary[index] = value
 
+    def __contains__(self, item):
+        return True
+
+    def iterkeys(self):
+        return self._Dictionary.iterkeys()
+
+    def __iter__(self):
+        return self._Dictionary.__iter__()
 
 
     
-class tFakeList:
+class tFakeList(object):
     def __init__(self, f, length):
         self._Length = length
         self._Function = f
@@ -204,7 +212,7 @@ class tFakeList:
 
 
 
-class tDependentDictionary:
+class tDependentDictionary(object):
     def __init__(self, f, start = {}):
         self._Function = f
         self._Dictionary = start.copy()
@@ -317,6 +325,67 @@ def unitVector(i, dim, typecode = num.Float):
 
 
 
+class tSparseVector(tDictionaryWithDefault):
+    def __init__(self):
+        tDictionaryWithDefault.__init__(self, lambda x: 0.)
+
+    def addTo(self, other, factor = 1.):
+        for key in self:
+            other[key] += factor * self[key]
+
+    def addToMatrixColumn(self, matrix, column, factor = 1.):
+        for key in self:
+            other[key, column] += factor * self[key]
+
+    def addToMatrixRow(self, matrix, row, factor = 1.):
+        for key in self:
+            other[row, key] += factor * self[key]
+
+    def conjugate(self):
+        result = tSparseVector()
+        for key in self:
+            result[key] = (self[key]+0j).conjugate()
+        return result
+
+    def __radd__(self, other):
+        result = other.copy()
+        for key in self:
+            result[key] += self[key]
+        return result
+
+    def __add__(self, other):
+        result = other.copy()
+        for key in self:
+            result[key] += self[key]
+        return result
+
+    def __rsub__(self, other):
+        result = other.copy()
+        for key in self:
+            result[key] -= self[key]
+        return result
+
+    def __sub__(self, other):
+        result = other.copy()
+        for key in self:
+            result[key] = self[key] - result[key]
+        return result
+
+    def __mul__(self, other):
+        result = tSparseVector()
+        for key in self:
+            result[key] = other * self[key]
+        return result
+
+    def __rmul__(self, other):
+        result = tSparseVector()
+        for key in self:
+            result[key] = other * self[key]
+        return result
+
+
+
+
 # Generic utilities ----------------------------------------------------------
 def flatten(list):
     result = []
@@ -412,6 +481,17 @@ def cartesianProductSum(list1, list2):
 
 
 
+def reverseDictionary(the_dict):
+    result = {}
+    for key, value in the_dict.iteritems():
+        if value in result:
+            raise RuntimeError, "non-reversible mapping"
+        result[value] = key
+    return result
+
+
+
+
 # Obscure stuff --------------------------------------------------------------
 def writeMatrixAsCSV(filename, matrix):
     mat_file = file(filename, "w")
@@ -420,25 +500,6 @@ def writeMatrixAsCSV(filename, matrix):
         for column in range(0, w):
             mat_file.write("%f," % matrix[ row, column ])
     mat_file.write("\n")
-
-
-
-
-def sequence2list(sequence):
-    result = []
-    for i in sequence:
-        result.append(i)
-    return result
-
-
-
-
-def vector2tuple(vector):
-    size, = vector.shape
-    if size == 2:
-        return vector[ 0 ], vector[ 1 ], 0
-    else:
-        return vector[ 0 ], vector[ 1 ], vector[ 2 ]
 
 
 

@@ -37,9 +37,9 @@ class tShapeGuide:
 
 class tShapeSection:
   """Describes a closed polygon."""
-  def __init__(self, shape_guide_list, constraint_id):
+  def __init__(self, shape_guide_list, tracking_id):
     self.ShapeGuideList = shape_guide_list
-    self.ConstraintId = constraint_id
+    self.TrackingId = tracking_id
 
   def containsPoint(self, point, relative_threshold = 1e-10):
     my_shape_guide_list = self.ShapeGuideList
@@ -220,7 +220,7 @@ class _tPyangleMesh(tMesh):
 
       constraint_id = None
       if section:
-        constraint_id = section.ConstraintId
+        tracking_id = section.TrackingId
 
       if isinstance(guide, tShapeGuide):
         c = guide.DeformationCoordinate
@@ -228,7 +228,7 @@ class _tPyangleMesh(tMesh):
 
       self.DOFManager.registerNode(no,
                                    num.array([pts.getSub(no, 0), pts.getSub(no, 1)]),
-                                   constraint_id, section)
+                                   tracking_id, section)
 
     pyangle.writeGnuplotMesh(",,mesh.data", out_p)
 

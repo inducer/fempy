@@ -1,5 +1,8 @@
 import pylinear.matrices as num
 import stopwatch
+import element
+import mesh_function
+import tools
 
 
 
@@ -7,7 +10,7 @@ import stopwatch
 class tVisualizationData:
     def __init__(self, start_nodes, start_values):
         self._Nodes = [node.Coordinates for node in start_nodes]
-        self._Values = list(start_values[:])
+        self._Values = start_values
         self._Triangles = []
         self._ExtraPolygons = []
     
@@ -134,10 +137,25 @@ def _visualizationDriver(driver, filename, info):
 
 
 
-def visualize(driver, filename, mesh, vector):
-    vis_data = tVisualizationData(mesh.dofManager(), vector)
-    for el in mesh.elements():
-        el.getVisualizationData(vector, vis_data)
+def visualize(driver, filename, mesh_func):
+    # also assign numbers for constrained nodes
+    dof_manager = mesh_func.mesh().dofManager()
+    new_number_assignment = element.assignNodeNumbers(dof_manager.constrainedNodes(),
+                                                      mesh_func.numberAssignment())
+
+    my_mesh_func = mesh_function.tMeshFunction(mesh_func.mesh(), 
+                                               new_number_assignment, 
+                                               mesh_func.vector())
+
+    nonu_lookup = tools.reverseDictionary(new_number_assignment)
+
+    nodes = [nonu_lookup[nonu] for nonu in range(len(dof_manager))]
+    node_values = [mesh_func[node] for node in nodes]
+
+    vis_data = tVisualizationData(nodes, node_values)
+
+    for el in mesh_func.mesh().elements():
+        el.getVisualizationData(my_mesh_func, vis_data)
     _visualizationDriver(driver, filename, vis_data.getInfoTuple())
 
 

@@ -8,7 +8,7 @@ import expression
 import form_function
 import visualization
 import tools
-
+import mesh_function
 
 class tFiniteElementError(Exception):
     def __init__(self, value):
@@ -19,37 +19,43 @@ class tFiniteElementError(Exception):
 
 
 # tNode -----------------------------------------------------------------------
-class tNode:
-    def __init__(self, tag, number, coordinates = None, 
-                 constraint_id = None, shape_section = None):
+class tNode(object):
+    def __init__(self, tag, coordinates = None, 
+                 tracking_id = None, shape_section = None):
         self.Coordinates = coordinates
-        self.Number = number
         self.Tag = tag
-        self.ConstraintId = constraint_id
+        self.TrackingId = tracking_id
+        self.Constraint = None
         self.ShapeSection = shape_section
+
+    def setConstraint(self, constraint):
+        """A constraint is a datastructure of the following shape:
+
+        intercept, [(coefficient_1, node_2), (coefficient_2, index_2), ...]
+
+        which is evaluated to
+
+        intercept + coefficient_1 * getValue(node_1) + ...
+        """
+        self.Constraint = constraint
 
 
 
 
 # tDOFManager -----------------------------------------------------------------
-class tDOFManager:
+class tDOFManager(object):
     def __init__(self):
         self._TagToNode = {}
-        self._NumberToNode = []
+        self.Nodes = []
         self._ConstrainedNodes = []
 
-    def registerNode(self, tag, coordinates = None, 
-                     constraint_id = None,
-                     shape_section = None):
+    def registerNode(self, tag, coordinates = None, tracking_id = None, shape_section = None):
         try:
             return self._TagToNode[tag]
         except KeyError:
-            new_number = len(self._NumberToNode)
-            node = tNode(tag, new_number, coordinates, constraint_id, shape_section)
+            node = tNode(tag, coordinates, tracking_id, shape_section)
             self._TagToNode[tag] = node
-            self._NumberToNode.append(node)
-            if constraint_id:
-                self._ConstrainedNodes.append(node)
+            self.Nodes.append(node)
             return node
 
     def getNodeByTag(self, tag):
@@ -59,20 +65,52 @@ class tDOFManager:
             raise RuntimeError, "Attempted to get a non-registered degree of freedom"
   
     def __len__(self):
-        return len(self._NumberToNode)
+        return len(self.Nodes)
 
     def __getitem__(self, index):
-        return self._NumberToNode[index]
+        return self.Nodes[index]
 
     def constrainedNodes(self):
-        return self._ConstrainedNodes
+        return [node for node in self.Nodes if node.Constraint is not None]
 
+    def unconstrainedNodes(self):
+        return [node for node in self.Nodes if node.Constraint is None]
+
+
+
+
+# tools -----------------------------------------------------------------------
+def getNodeValue(node, number_assignment, vector):
+    if node.Constraint is None:
+        return vector[number_assignment[node]]
+    else:
+        return node.Constraint[0] \
+               + sum([coeff * getNodeValue(other_node, number_assignment, vector)
+                      for coeff, other_node in node.Constraint[1]])
+
+
+
+
+def assignNodeNumbers(node_list, beginning_assignment = {}, next_number = None, increment = 1):
+    result = beginning_assignment.copy()
+
+    if next_number is None:
+        if len(result) == 0:
+            next_number = 0
+        else:
+            next_number = max(result.values())+1
+
+    for node in node_list:
+        if not node in result:
+            result[node] = next_number
+            next_number += increment
+    return result
 
 
 
 
 # finite element abstract interface -------------------------------------------
-class tFiniteElement:
+class tFiniteElement(object):
     """This class is the abstract interface for an element. An element only
     knows how to add various integral contributions to a matrix
     given indirectly through a tMatrixBuilder."""
@@ -82,10 +120,9 @@ class tFiniteElement:
         self.FormFunctions = form_function_kit.formFunctions()
         self.DifferentiatedFormFunctions = form_function_kit.differentiatedFormFunctions()
         self.Nodes = form_function_kit.getNodes(base_nodes, dof_manager, self)
-        self.NodeNumbers = [node.Number for node in self.Nodes]
     
-    def nodeNumbers(self):
-        return self.NodeNumbers
+    def nodes(self):
+        return self.Nodes
 
     def formFunctionKit(self):
         return self.FormFunctionKit
@@ -245,16 +282,16 @@ class tFormFunctionKit:
                                                   float(inbetween_point.Denominator))
 
             shape_section = None
-            constraint_id = None
+            tracking_id = None
             if na.ShapeSection is not None and \
                  na.ShapeSection == nb.ShapeSection and \
                  na.ShapeSection.containsPoint(coordinates):
                 shape_section = na.ShapeSection
-                constraint_id = shape_section.ConstraintId
+                tracking_id = shape_section.TrackingId
 
             return dof_manager.registerNode(inbetween_point.completeTag(na.Tag, nb.Tag),
                                             coordinates,
-                                            constraint_id,
+                                            tracking_id,
                                             shape_section
                                             )
 
@@ -404,9 +441,8 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
         return jacobian_det * integration.integrateOnUnitTriangle(functionInIntegral)
 
-    def getVisualizationData(self, solution_vector, vis_data):
-        _visualizeTriangle(vis_data, self, self.Nodes,
-                           solution_vector, self.FormFunctionKit,
+    def getVisualizationData(self, solution_mesh_func, vis_data):
+        _visualizeTriangle(vis_data, self, solution_mesh_func, 
                            self.FormFunctionKit.recommendNumberOfVisualizationSegments())
 
 
@@ -538,38 +574,36 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
         return integration.integrateOnUnitTriangle(functionInIntegral)
 
-    def getVisualizationData(self, solution_vector, vis_data):
-        segments = max(8, self.FormFunctionKit.recommendNumberOfVisualizationSegments())
-        _visualizeTriangle(vis_data, self, self.Nodes,
-                           solution_vector, self.FormFunctionKit,
-                           segments)
+    def getVisualizationData(self, solution_mesh_func, vis_data):
+        segments = max(4, self.FormFunctionKit.recommendNumberOfVisualizationSegments())
+        _visualizeTriangle(vis_data, self, solution_mesh_func, segments)
 
 
 
 
 # Tools ----------------------------------------------------------------
-def _visualizeTriangle(vis_data, element, element_nodes, solution_vector, 
-                       form_function_kit, segments = 8):
+def _visualizeTriangle(vis_data, element, solution_mesh_func, 
+                       segments = 8):
+    form_function_kit = element.formFunctionKit()
     form_funcs = form_function_kit.formFunctions()
+    element_nodes = element.nodes()
     h = 1./segments
 
     # first column
     line_of_node_numbers = []
 
-    line_of_node_numbers.append(element_nodes[0].Number)
+    nuass = solution_mesh_func.numberAssignment()
+
+    line_of_node_numbers.append(nuass[element_nodes[0]])
     for y_n in range(1, segments):
-        y = y_n * h
-    
-        value = 0
-        for i in range(len(form_funcs)):
-            value += form_funcs[i](num.array([0,y])) * \
-                     solution_vector[element_nodes[i].Number]
+        pt = num.array([0,y_n*h])
       
         line_of_node_numbers.append(
             vis_data.registerLocalNode(
-            element.transformToReal(num.array([0,y])), value))
+            element.transformToReal(pt), 
+            solution_mesh_func.getValueOnElement(element, pt)))
 
-    line_of_node_numbers.append(element_nodes[2].Number)
+    line_of_node_numbers.append(nuass[element_nodes[2]])
     node_numbers_laid_out = [line_of_node_numbers]
 
     # in between
@@ -577,21 +611,17 @@ def _visualizeTriangle(vis_data, element, element_nodes, solution_vector,
         x = x_n * h
         line_of_node_numbers = []
         for y_n in range(segments-x_n+1):
-            y = y_n * h
-
-            value = 0
-            for i in range(len(form_funcs)):
-                value += form_funcs[i](num.array([x,y])) * \
-                         solution_vector[element_nodes[i].Number]
+            pt = num.array([x,y_n*h])
 
             line_of_node_numbers.append(
                 vis_data.registerLocalNode(
-                element.transformToReal(num.array([x,y])), value))
+                element.transformToReal(pt), 
+                solution_mesh_func.getValueOnElement(element, pt)))
 
         node_numbers_laid_out.append(line_of_node_numbers)
 
     # last column
-    node_numbers_laid_out.append([element_nodes[1].Number])
+    node_numbers_laid_out.append([nuass[element_nodes[1]]])
 
     triangles = []
     for x_n in range(segments):

@@ -45,7 +45,7 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
 
     if mesh_change is None:
       job.done()
-      return mesh,solution
+      return mesh, solution
 
     mesh = mesh_change.meshAfter()
     job.done()
@@ -59,10 +59,10 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
 
 
   
-def visualize(mesh, vector):
-  #visualization.visualize("gnuplot", ",,result.data", mesh, vector)
-  #visualization.visualize("matlab", "/tmp/visualize.m", mesh, vector)
-  visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), mesh, vector)
+def visualize(mesh_func):
+  #visualization.visualize("gnuplot", ",,result.data", mesh_func)
+  #visualization.visualize("matlab", "/tmp/visualize.m", mesh_func)
+  visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), mesh_func)
 
 
 
@@ -85,15 +85,16 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     if start_solution_vector is None:
       start_solution_vector = num.zeros((len(new_mesh.dofManager()),), num.Float)
 
+    solver.updateDirichletBCs(new_mesh, sol_c)
     solution_vector = solver.solvePoisson(new_mesh, 
-      rhs_c, sol_c, start_solution_vector)
+      rhs_c, start_solution_vector)
 
     job = stopwatch.tJob("error")
     my_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)
 
     errors = map(my_estimator, new_mesh.elements())
     worst_error = max(errors)
-    max_strategy_selection = filter(lambda err: err > 0.5 * worst_error, errors)
+    max_strategy_selection = [err for err in errors if err > 0.5 * worst_error]
     if len(max_strategy_selection) <= 5:
       print "...backed out to quantile strategy..."
       errors.sort()
@@ -114,7 +115,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     it_number.set(it_number.get() + 1)
     return refine_decision, solution_vector
 
-  new_mesh, solution_vector = solveAdaptively(mesh, solve, max_iterations)
+  new_mesh, mesh_function = solveAdaptively(mesh, solve, max_iterations)
 
   print "-------------------------------------------------------"
   print "EOC overall:", eoc_rec.estimateOrderOfConvergence()[0,1]
@@ -127,7 +128,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   eoc_rec.writeGnuplotFile(",,convergence.data")
 
-  visualize(new_mesh, solution_vector)
+  visualize(mesh_function)
 
 
 

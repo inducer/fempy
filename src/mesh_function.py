@@ -1,4 +1,5 @@
 import weakref
+import element
 import pylinear.matrices as num
 import pylinear.matrix_tools as mtools
 import pylinear.linear_algebra as la
@@ -8,52 +9,63 @@ import tools
 
 
 
-def getValueOnElement(element, node_v, unit_point):
-    ffs = element.formFunctionKit().formFunctions()
-    nonus = element.nodeNumbers()
+class tMeshFunction(object):
+    def __init__(self, mesh, number_assignment, vector):
+        self.Mesh = mesh
+        self.NumberAssignment = number_assignment
+        self.Vector = vector
 
-    value = ffs[0](unit_point) * node_v[nonus[0]]
+    # accessors ------------------------------------------------------------------
+    def mesh(self):
+        return self.Mesh
 
-    for ff, nonu in zip(ffs, nonus)[1:]:
-        value += ff(unit_point) * node_v[nonu]
-    return value
+    def numberAssignment(self):
+        return self.NumberAssignment
 
+    def vector(self):
+        return self.Vector
 
+    # value getters --------------------------------------------------------------
+    def __getitem__(self, node):
+        return element.getNodeValue(node, self.NumberAssignment, self.Vector)
 
+    def getValueOnElement(self, el, unit_point):
+        ffs = el.formFunctionKit().formFunctions()
+        nodes = el.nodes()
 
-def getGradientOnElement(element, node_v, unit_point):
-    ffs = element.formFunctionKit().differentiatedFormFunctions()
-    nonus = element.nodeNumbers()
+        value = ffs[0](unit_point) * element.getNodeValue(nodes[0], 
+                                                          self.NumberAssignment,
+                                                          self.Vector)
+        
+        for ff, node in zip(ffs, nodes)[1:]:
+            value += ff(unit_point) * element.getNodeValue(node,
+                                                           self.NumberAssignment,
+                                                           self.Vector)
+        return value
 
-    value = num.array([deriv(unit_point) for deriv in ffs[0]]) * node_v[nonus[0]]
+    def getGradientOnElement(self, el, unit_point):
+        ffs = el.formFunctionKit().differentiatedFormFunctions()
+        nodes = el.nodes()
 
-    for grad, nonu in zip(ffs, nonus)[1:]:
-        value += num.array([deriv(unit_point) for deriv in grad]) * node_v[nonu]
-    return value
+        value = num.array([deriv(unit_point) for deriv in ffs[0]]) * self[nodes[0]]
+                               
+        for grad, node in zip(ffs, nodes)[1:]:
+            value += num.array([deriv(unit_point) for deriv in grad]) * self[node]
+        return value
 
+    def getRealGradientOnElement(self, el, unit_point):
+        return num.matrixmultiply(
+            num.transpose(la.inverse(
+            el.getTransformJacobian(unit_point))),
+            self.getGradientOnElement(el, unit_point))
 
+    def __call__(self, point):
+        el = self.Mesh.findElement(point)
+        return self.getValueOnElement(el, el.transformToUnit(point))
 
-
-def getRealGradientOnElement(element, node_v, unit_point):
-    return num.matrixmultiply(
-        num.transpose(la.inverse(
-        element.getTransformJacobian(unit_point))),
-        getGradientOnElement(element, node_v, unit_point))
-
-
-
-
-def getGlobalSolution(mesh, node_v, point):
-    el = mesh.findElement(point)
-    return getValueOnElement(el, node_v, el.transformToUnit(point))
-
-
-
-
-def getGlobalSolutionGradient(mesh, node_v, point):
-    el = mesh.findElement(point)
-    return getRealGradientOnElement(el, node_v, 
-                                    el.transformToUnit(point))
+    def getGradient(self, point):
+        el = self.Mesh.findElement(point)
+        return self.getRealGradientOnElement(el, el.transformToUnit(point))
 
 
 
