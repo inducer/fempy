@@ -154,7 +154,7 @@ def writeMatlabFile(name, dof_manager, elements, node_data):
 	    m_file.write("%f" % data[ i,j ])
     m_file.write("];\n")
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
 
   coords = num.array(nodes)
 
