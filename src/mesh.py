@@ -350,16 +350,17 @@ class _tPyangleMesh(tMesh):
         # s = x-y
         expr_s = ("-", ("variable", "0"), ("variable", "1"))
 
+        # alpha is the blend factor
         # alpha is zero on 2<->0<->1 and one on 1<->2.
         # alpha = (s^2-t^2)/(s^2-1)
         expr_alpha = ("/", ("-", ("**", expr_s, 2), ("**", expr_t, 2)),
-                     ("-", ("**", expr_s, 2), 1))
+                     ("+", 1e-50, ("-", ("**", expr_s, 2), 1)))
 
         # calculate the forward linear transform 
         node_coords = [nodes[no].coordinates() for no in node_numbers]
-        mat = num.transpose(num.array([ n - node_coords[0] for n in node_coords[1:] ]))
-        matinv = la.inverse(mat)
         nc0 = node_coords[0]
+        mat = num.transpose(num.array([ n - nc0 for n in node_coords[1:] ]))
+        matinv = la.inverse(mat)
 
         variables = [ ("variable","0"), ("variable","1") ]
 
@@ -370,40 +371,73 @@ class _tPyangleMesh(tMesh):
 
         # assemble expression for forward nonlinear transform
         deform_coord = guide.DeformationCoordinate
-        non_deform_coord = guide.DeformationCoordinate
+        non_deform_coord = 1-guide.DeformationCoordinate
 
+        # map s-space [-1,1] to [a,b]
+        a = node_coords[1][non_deform_coord]
+        b = node_coords[2][non_deform_coord]
+        expr_guide_argument = ("+",("*",(b-a)/2., expr_s), (b+a)/2.)
         expr_guide = expression.substitute(guide.Expression, 
-                                            {"t": expr_linear_transform[non_deform_coord]})
+                                            {"t": expr_guide_argument})
         expr_transform = expr_linear_transform[:]
-        expr_transform[deform_coord] = ("+",("*",("-", 1, expr_alpha), 
-                                             expr_linear_transform[deform_coord]),
-                                        ("*", expr_alpha, expr_guide))
+
+        expr_x_minus_y = ("-",("variable","0"),("variable","1"))
+        expr_reference_x = ("*", ("+", expr_x_minus_y, 1), 0.5)
+        expr_reference_y = ("*", ("-", 1, expr_x_minus_y), 0.5)
+        expr_linear_reference = ("+", 
+                                 nc0[deform_coord], 
+                                 expression.linearCombination(mat[deform_coord], 
+                                                              [expr_reference_x, expr_reference_y]))
+        expr_transform[deform_coord] = ("+",
+                                        ("*", expr_alpha, 
+                                         ("-", expr_guide, expr_linear_reference)),
+                                        expr_linear_transform[deform_coord])
+
+        if False:
+          txtoreal = expression.compileVectorField(expr_transform)
+          alpha_c = expression.compileScalarField(expr_alpha)
+          offset_c = expression.compileScalarField(("-", expr_guide, expr_linear_transform[deform_coord]))
+
+          deform_file = file(",,deform.data", "w")
+          segments = 20
+          h = 1./segments
+          for y_i in range(segments):
+            y = float(y_i)/segments
+            for x_i in range(segments-y_i):
+              x = float(x_i)/segments
+
+              def write(x,y):
+                alpha = alpha_c([x,y])
+                offset = offset_c([x,y])
+                deform = txtoreal([x,y])
+                deform_file.write("%f\t%f\t%f\n" % (deform[0], deform[1], alpha))
+
+              # 0
+              # 12
+              write(x,y+h)
+              write(x,y)
+              write(x+h,y)
+              write(x,y+h)
+              deform_file.write("\n\n")
 
         # compose inverse nonlinear transform
-        deformed_coordinate_function = expression.compileScalarField(expr_transform[deform_coord])
-        deformed_coordinate_function_prime = expression.compileScalarField(
-          expression.simplify(
-          expression.differentiate(expr_transform[deform_coord], "%d" % deform_coord)))
-        non_deform_matrix_inverse = matinv[non_deform_coord]
+        func_transform = expression.compileVectorField(expr_transform)
+        func_transform_jacobian = expression.compileMatrixFunction(
+          expression.jacobian(expr_transform, ["0", "1"]))
         
         def inv_func(point):
-          non_deform_value = num.innerproduct(non_deform_matrix_inverse, point)
-          target_value = point[deform_coord]
-          def newton_func(deform_value):
-            my_point = num.zeros((2,), num.Float)
-            my_point[deform_coord] = deform_value
-            my_point[non_deform_coord] = non_deform_value
-            return deformed_coordinate_function(my_point) - target_value
-          def newton_func_prime(deform_value):
-            my_point = num.zeros((2,), num.Float)
-            my_point[deform_coord] = deform_value
-            my_point[non_deform_coord] = non_deform_value
-            return deformed_coordinate_function_prime(my_point)
-          return tools.findZeroByNewton(newton_func, newton_func_prime, point[deform_coord])
+          def newton_func(x):
+            return func_transform(x)-point
+          return tools.findVectorZeroByNewton(newton_func, 
+                                              func_transform_jacobian, 
+                                              num.matrixmultiply(matinv, point - nc0))
 
         elements.append(
           element.tDistortedTwoDimensionalLinearTriangularFiniteElement(
-          my_nodes, expr_transform, inv_func, self.DOFManager))
+          my_nodes, 
+          func_transform, 
+          func_transform_jacobian,
+          inv_func, self.DOFManager))
       elif len(guided_nodes) == 3:
         # more than one edge is guided
         raise RuntimeError, "More than one edge is guided. This is currently unsupported."

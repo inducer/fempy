@@ -133,7 +133,7 @@ def addFormFunctions(cls, form_func_expr, dimensions):
       fj = cls.FormFunctions[ j ]
 
       crossint[i,j] = crossint[j,i] = \
-        integration.integrateFunctionOnUnitTriangle(
+        integration.integrateOnUnitTriangle(
             lambda point: fi(point) * fj(point))
 
   cls.FormFunctionCrossIntegrals = crossint
@@ -223,7 +223,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
 	influence_matrix[row,column] = \
 	influence_matrix[column,row] = \
-	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+	    integration.integrateOnUnitTriangle(functionInIntegral)
 
     builder.addScatteredSymmetric(self.InverseDeterminant * influence_matrix, self.NodeNumbers)
 
@@ -240,7 +240,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     for i in range(n):
       ff = self.FormFunctions[i]
-      influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle(
+      influences[i] = jacobian_det * integration.integrateOnUnitTriangle(
         lambda point: f(self.transformToReal(point) , ff( point)))
 
     builder.addScattered(influences, self.NodeNumbers)
@@ -252,7 +252,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
       ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
       return f(self.transformToReal(point) , ff_comb)
 
-    return jacobian_det * integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+    return jacobian_det * integration.integrateOnUnitTriangle(functionInIntegral)
 
   def getSolutionFunction(self, solution_vector):
     node_values = num.take(solution_vector, self.NodeNumbers)
@@ -304,23 +304,13 @@ addFormFunctions(
 # distorted elements ----------------------------------------------------------
 class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
-  def __init__(self, nodes, distort_expressions, inverse_distort_function, dof_manager):
+  def __init__(self, nodes, distort_function, distort_jacobian, inverse_distort_function, dof_manager):
     tFiniteElement.__init__(self, nodes, dof_manager)
     assert len(nodes) == len(self.FormFunctions)
 
-    dimensions = len(distort_expressions)
-
-    self.transformToReal = expression.compileVectorField(distort_expressions)
+    self.transformToReal = distort_function
     self.transformToUnit = inverse_distort_function
-
-    # create derivatives
-    self.getDistortionDerivatives = \
-        expression.assembleMatrixFunction([ [ 
-            expression.compileScalarField(
-              expression.simplify(expression.differentiate(
-                distort_expressions[dim], "%d" % ddim)))
-              for ddim in range(dimensions) ]
-              for dim in range(dimensions) ])
+    self.getDistortionJacobian = distort_jacobian
 
     # verify validity
     if False:
@@ -330,13 +320,14 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
         inverseNorm(self.transformToReal, self.transformToUnit, num.array(point)) 
         for point in 
           [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
+      print inverse_norms
       assert max(inverse_norms) < 1e-10
 
   # external tools ------------------------------------------------------------
   def area(self):
     def functionInIntegral(point):
-      return math.fabs(la.determinant(self.getDistortionDerivatives(point)))
-    return integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+      return math.fabs(la.determinant(self.getDistortionJacobian(point)))
+    return integration.integrateOnUnitTriangle(functionInIntegral)
 
   def boundingBox(self):
     # FIXME: this will often be wrong
@@ -356,7 +347,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
     if which_derivative == "both":
       def functionInIntegral(point):
-        g = self.getDistortionDerivatives(point)
+        g = self.getDistortionJacobian(point)
 
         # determinant count:
         # +1 for the substitution integral
@@ -385,13 +376,13 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
 	influence_matrix[row,column] = \
 	influence_matrix[column,row] = \
-	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+	    integration.integrateOnUnitTriangle(functionInIntegral)
 
     builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunctions(self, builder):
     def functionInIntegral(point):
-      g = self.getDistortionDerivatives(point)
+      g = self.getDistortionJacobian(point)
       return math.fabs(la.determinant(g)) * \
         fr(point) * fc(point)
 
@@ -404,7 +395,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
 	influence_matrix[row,column] = \
 	influence_matrix[column,row] = \
-	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+	    integration.integrateOnUnitTriangle(functionInIntegral)
 
     builder.addScattered(influence_matrix, self.NodeNumbers)
 
@@ -413,12 +404,12 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
     influences = num.zeros((n,), num.Float)
 
     def functionInIntegral(point):
-      g = self.getDistortionDerivatives(point)
+      g = self.getDistortionJacobian(point)
       return math.fabs(la.determinant(g)) * \
         f(self.transformToReal(point), ff(point))
     for i in range(n):
       ff = self.FormFunctions[i]
-      influences[i] = integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+      influences[i] = integration.integrateOnUnitTriangle(functionInIntegral)
 
     builder.addScattered(influences, self.NodeNumbers)
 
@@ -426,10 +417,10 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
     zipped = zip(coefficients, self.FormFunctions)
     def functionInIntegral(point):
       ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
-      return math.fabs(la.determinant(self.getDistortionDerivatives(point))) * \
+      return math.fabs(la.determinant(self.getDistortionJacobian(point))) * \
           f(self.transformToReal(point) , ff_comb)
 
-    return integration.integrateFunctionOnUnitTriangle(functionInIntegral)
+    return integration.integrateOnUnitTriangle(functionInIntegral)
 
   def getSolutionFunction(self, solution_vector):
     node_values = num.take(solution_vector, self.NodeNumbers)

@@ -6,7 +6,7 @@ import math
 
 
 
-def doIntegration(locations, weights, f):
+def _doIntegration(locations, weights, f):
   h,w = locations.shape
   f_values = num.zeros((h,), num.Float)
   for i in range(0,h):
@@ -39,13 +39,13 @@ INTEGRATION_TRI_LOCATIONS = num.array([
     [ (9.+2.*math.sqrt(15))/21., (6.-math.sqrt(15))/21. ],
     [ (6.-math.sqrt(15))/21., (9.+2.*math.sqrt(15))/21. ] ])
 
-def integrateFunctionOnUnitTriangle(f):
+def integrateOnUnitTriangle(f):
   """This function returns the value of 
 
   \int_T f(x,y) d(x,y)
 
   where T is the right triangle with the cornes (0,0),(1,0),(0,1)."""
-  return doIntegration(INTEGRATION_TRI_LOCATIONS, INTEGRATION_TRI_WEIGHTS, f)
+  return _doIntegration(INTEGRATION_TRI_LOCATIONS, INTEGRATION_TRI_WEIGHTS, f)
 
 
 
@@ -60,13 +60,13 @@ INTEGRATION_LINE_WEIGHTS_3 = num.array([
     8./18.,
     5./18. ])
 
-def integrateFunctionOnUnitInterval3(f):
+def integrateOnUnitInterval3(f):
   """This function returns the value of
 
   \int_0^1 f(x) dx.
   
   It uses a Gaussian quadrature of order 3."""
-  return doIntegration(INTEGRATION_LINE_LOCATIONS_3, INTEGRATION_LINE_WEIGHTS_3, f)
+  return _doIntegration(INTEGRATION_LINE_LOCATIONS_3, INTEGRATION_LINE_WEIGHTS_3, f)
 
 
 
@@ -83,10 +83,10 @@ INTEGRATION_LINE_WEIGHTS_4 = num.array([
     0.3260725774,
     0.1739274226 ])
 
-def integrateFunctionOnUnitInterval4(f):
+def integrateOnUnitInterval4(f):
   """This function returns the value of
 
   \int_0^1 f(x) dx.
   
   It uses a Gaussian quadrature of order 4."""
-  return doIntegration(INTEGRATION_LINE_LOCATIONS_4, INTEGRATION_LINE_WEIGHTS_4, f)
+  return _doIntegration(INTEGRATION_LINE_LOCATIONS_4, INTEGRATION_LINE_WEIGHTS_4, f)

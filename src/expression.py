@@ -80,9 +80,24 @@ def substitute(expression, variable_assignments = {}):
 
 
 
-def isConstant(expression, variable_assignments = {}):
+def isConstant(expression, wrt = None):
+  """Returns whether the expression is constant, i.e. does not 
+  depend on variables.
+
+  If wrt (short for with respect to) is None, the occurrence of any 
+  variable makes the expression non-constant.
+
+  If wrt is a list of variable identifiers, only those variables 
+  are assumed "non-constant".
+  """
   def isc(expression):
     return pattern.switch(ruleset, expression)
+
+  def isVarConstant(x):
+    if wrt:
+      return x not in wrt
+    else:
+      return False
 
   ruleset = [
     ("+",VAR,VAR), lambda x,y: isc(x) and isc(y),
@@ -95,7 +110,7 @@ def isConstant(expression, variable_assignments = {}):
     ("cos",VAR), lambda x: isc(x),
     ("tan",VAR), lambda x: isc(x),
     ("ispos",VAR), lambda x: isc(x),
-    ("variable",VAR), lambda x: False,
+    ("variable",VAR), isVarConstant,
     VAR, lambda x: True
   ]
 
@@ -106,6 +121,8 @@ def isConstant(expression, variable_assignments = {}):
 
 def differentiate(expression, variable):
   def diff(expression):
+    if isConstant(expression, [variable]):
+      return 0
     return matchRuleSet(ruleset, expression)
   
   def diffVariable(var):
@@ -117,11 +134,27 @@ def differentiate(expression, variable):
   def ispos_diff(x):
     raise RuntimeError, "ispos is not differentiable"
 
+  def diffMultiplication(f,g):
+    if isConstant(f, [variable]):
+      return ("*",f,diff(g))
+    elif isConstant(g, [variable]):
+      return ("*",g,diff(f))
+    else:
+      return ("+", ("*",diff(f),g),("*",f,diff(g)))
+
+  def diffDivision(f,g):
+    if isConstant(f, [variable]):
+      return ("/", ("-",("*",f,diff(g))), ("**", g, 2))
+    elif isConstant(g, [variable]):
+      return ("/",diff(f),g)
+    else:
+      return ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2))
+
   ruleset = {
     ("+",2): lambda x,y: ("+", diff(x), diff(y)),
     ("-",2): lambda x,y: ("-", diff(x), diff(y)),
-    ("*",2): lambda x,y: ("+", ("*",diff(x),y),("*",x,diff(y))),
-    ("/",2): lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2)),
+    ("*",2): diffMultiplication,
+    ("/",2): diffDivision,
     # This assumes that the exponent is constant.
     ("**",2): lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
     ("-",1): lambda x: ("-",diff(x)),
@@ -319,7 +352,19 @@ def assembleMatrixFunction(function_list):
 
 
 def compileVectorField(expr_list, preimage_dim = 2):
-  return assembleVectorFunction([compileScalarField(expr) for expr in expr_list])
+  return assembleVectorFunction([compileScalarField(expr, preimage_dim) for expr in expr_list])
+
+
+
+
+def compileMatrixFunction(expr_list, preimage_dim = 2):
+  return assembleMatrixFunction(
+    [
+    [
+    compileScalarField(expr, preimage_dim)
+    for expr in outer]
+    for outer in expr_list])
+
 
 
 
@@ -358,7 +403,13 @@ def linearCombination(coefficients, expressions):
 
 
 def grad(expression, variables):
-  return [differentiate(expression, var) for var in variables]
+  return [simplify(differentiate(expression, var)) for var in variables]
+
+
+
+
+def jacobian(expression_list, variables):
+  return [grad(expr, variables) for expr in expression_list]
 
 
 
