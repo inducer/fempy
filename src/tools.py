@@ -129,3 +129,50 @@ def partition(criterion, list):
 
 def indices_and(list):
   return zip(range(len(list)), list)
+
+
+
+
+def distanceToLine(start_point, direction, point):
+  # Ansatz: start_point + alpha * direction 
+  # <start_point + alpha * direction - point, direction> = 0!
+  alpha = - num.innerproduct(start_point - point, direction)/tools.norm2squared(direction)
+  foot_point = start_point + alpha * direction
+  return norm2(point - foot_point), alpha
+
+
+
+
+def angleBetweenVectors(vec1, vec2):
+  return math.acos(math.fabs(num.innerproduct(vec1, vec2) \
+                             / norm2(vec1) \
+                             / norm2(vec2)))
+
+
+
+
+class tFunctionValueCache:
+  def __init__(self, function):
+    self.Function = function
+    self.ResultMap = {}
+
+  def __call__(self, arg):
+    try:
+      return self.ResultMap[arg]
+    except KeyError:
+      result = self.Function(arg)
+      self.ResultMap[arg] = result
+      return result
+
+
+
+
+def sumOver(function, arguments):
+  result = 0
+  for i in arguments:
+    result += function(i)
+  return result
+
+
+
+

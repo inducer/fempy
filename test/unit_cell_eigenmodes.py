@@ -22,13 +22,6 @@ def unitCellDemo(mesh, epsilon, sigma, k):
   mesh.generate()
   job.done()
 
-  def distanceToLine(start_point, direction, point):
-    # Ansatz: start_point + alpha * direction 
-    # <start_point + alpha * direction - point, direction> = 0!
-    alpha = - num.innerproduct(start_point - point, direction)/tools.norm2squared(direction)
-    foot_point = start_point + alpha * direction
-    return tools.norm2(point - foot_point), alpha
-
   boundaries = [[-0.5, 0.5], [-0.5,0.5]]
   def isOnSameBoundary(point1, point2):
     n, = point1.shape
@@ -38,8 +31,7 @@ def unitCellDemo(mesh, epsilon, sigma, k):
     return False
 
   job = fempy.stopwatch.tJob("periodicity")
-  periodic_nodes = []
-  thresh = 1e-5
+  thresh = math.pi / 8.
   bnodes = mesh.boundaryNodes()
 
   pairs = []
@@ -47,7 +39,7 @@ def unitCellDemo(mesh, epsilon, sigma, k):
     without_this = bnodes[index+1:]
 
     nodes_with_distances = tools.decorate(
-      lambda other_node: distanceToLine(node.coordinates(), k, other_node.coordinates())[0],
+      lambda other_node: tools.angleBetweenVectors(node.coordinates()-other_node.coordinates(), k),
       without_this)
     nodes_with_distances.sort(lambda (node1, dist1), (node2, dist2): cmp(dist1, dist2))
     
@@ -60,6 +52,7 @@ def unitCellDemo(mesh, epsilon, sigma, k):
   pairs.sort(lambda (node1a, node1b, dist1), (node2a, node2b, dist2): cmp(dist1, dist2))
 
   unconnected = tools.tReference(len(bnodes))
+  periodic_nodes = []
   connections = {}
   
   def connect(node_a,node_b):
@@ -75,12 +68,15 @@ def unitCellDemo(mesh, epsilon, sigma, k):
       connections[node_b].append(node_a)
 
   pairs_index = 0
-  while unconnected.get() > 0:
+  while unconnected.get() > 0 and pairs_index < len(pairs):
     node_a, node_b, dist = pairs[pairs_index]
-    connect(node_a, node_b)
+    if (not node_a in connections or \
+       not node_b in connections) and \
+       dist < thresh:
+      connect(node_a, node_b)
 
-    k_dist = num.innerproduct(node_a.coordinates()-node_b.coordinates(),k)
-    periodic_nodes.append((node_a, node_b, cmath.exp(1j * k_dist)))
+      k_dist = num.innerproduct(node_a.coordinates()-node_b.coordinates(),k)
+      periodic_nodes.append((node_a, node_b, cmath.exp(1j * k_dist)))
     pairs_index += 1
 
   connections_file = file(",,connections.data", "w")

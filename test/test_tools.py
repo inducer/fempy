@@ -5,7 +5,7 @@ import fempy.stopwatch as stopwatch
 import fempy.tools as tools
 import fempy.solver as solver
 import fempy.visualization as visualization
-import fempy.error_estimator as error_estimator
+import fempy.element_norm as element_norm
 
 
 
@@ -91,8 +91,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       rhs_c, sol_c, start_solution_vector)
 
     job = stopwatch.tJob("error")
-    my_estimator = error_estimator.tAnalyticSolutionH1ErrorEstimator(
-      new_mesh, solution_vector, sol_c, grad_sol_c)
+    my_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)
 
     errors = map(my_estimator, new_mesh.elements())
     worst_error = max(errors)
@@ -110,7 +109,8 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       else:
         return 0
 
-    eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError()**0.5)
+    eoc_rec.addDataPoint(len(new_mesh.elements())**0.5,
+                         tools.sumOver(my_estimator, new_mesh.elements())**0.5)
     job.done()
 
     it_number.set(it_number.get() + 1)

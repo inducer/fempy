@@ -166,16 +166,34 @@ class tFiniteElement:
 
 
 # Form function related -------------------------------------------------------
-def addFormFunctions(cls, form_func_expr, dimensions):
-  cls.FormFunctionExpressions = form_func_expr
+class tFormFunctionKit:
+  def __init__(self, form_func_expressions, dimension):
+    self._FormFunctionExpressions = form_func_expressions
 
-  cls.FormFunctions = \
-    [ expression.compileScalarField(expr) for expr in cls.FormFunctionExpressions ]
-  cls.DifferentiatedFormFunctions = \
-    [
-    [ expression.compileScalarField(expression.simplify(expression.differentiate(expr, "%i" % dim)))
-      for dim in range(dimensions) ]
-    for expr in cls.FormFunctionExpressions ]
+    self._FormFunctions = [ expression.compileScalarField(expr, dimension) 
+                          for expr in form_func_expressions]
+    self._DifferentiatedFormFunctions =  [ [ 
+      expression.compileScalarField(expression.simplify(
+      expression.differentiate(expr, "%i" % dim)), dimension)
+      for dim in range(dimension) ] for expr in form_func_expressions]
+
+  def formFunctions(self):
+    return self._FormFunctions
+
+  def differentiatedFormFunctions(self):
+    return self._DifferentiatedFormFunctions
+
+
+
+
+def makeTriangleFormFunctionExpressions(order):
+  base_points = [ [0,0], [1,0], [0,1] ]
+  circular_base_points = base_points + [base_points[0]]
+  return form_function.makeFormFunctions(1, base_points)
+
+
+
+LinearFormFunctionKit = tFormFunctionKit(makeTriangleFormFunctionExpressions(1), 2)
 
 
 
@@ -183,8 +201,13 @@ def addFormFunctions(cls, form_func_expr, dimensions):
 # implementations -------------------------------------------------------------
 class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
-  def __init__(self, nodes, dof_manager):
+  def __init__(self, nodes, dof_manager, form_function_kit = LinearFormFunctionKit):
     tFiniteElement.__init__(self, nodes, dof_manager)
+    self.FormFunctionKit = form_function_kit
+
+    self.FormFunctions = form_function_kit.formFunctions()
+    self.DifferentiatedFormFunctions = form_function_kit.differentiatedFormFunctions()
+
     assert len(nodes) == len(self.FormFunctions)
 
     self.X = [ node.coordinates()[0] for node in self.Nodes ]
@@ -322,27 +345,22 @@ class tTwoDimensionalLinearTriangularFiniteElement(tTwoDimensionalTriangularFini
 	[ solution_vector[ n ] for n in self.NodeNumbers ],
 	[ (0,1,2) ])
 
-addFormFunctions(
-  tTwoDimensionalLinearTriangularFiniteElement,
-  form_function.makeFormFunctions(1, [ [0,0], [1,0], [0,1] ]),
-  dimensions = 2)
 
 
 
-
-
-class tTwoDimensionalQuadraticTriangularFiniteElement(tTwoDimensionalTriangularFiniteElement):
-  def visualizationData(self, solution_vector):
-    return visualization.tVisualizationData(
+if False:
+  class tTwoDimensionalQuadraticTriangularFiniteElement(tTwoDimensionalTriangularFiniteElement):
+    def visualizationData(self, solution_vector):
+      return visualization.tVisualizationData(
 	self.Nodes, 
 	[ solution_vector[ n ] for n in self.NodeNumbers ],
 	[ (0,3,5), (3,1,4), (3,4,5), (5,4,2) ])
-
-addFormFunctions(
-  tTwoDimensionalQuadraticTriangularFiniteElement,
-  form_function.makeFormFunctions(2, 
-    [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ]),
-  dimensions = 2)
+    
+    addFormFunctions(
+      tTwoDimensionalQuadraticTriangularFiniteElement,
+      form_function.makeFormFunctions(2, 
+                                      [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ]),
+      dimensions = 2)
 
 
 
@@ -350,8 +368,14 @@ addFormFunctions(
 # distorted elements ----------------------------------------------------------
 class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
-  def __init__(self, nodes, distort_function, distort_jacobian, inverse_distort_function, dof_manager):
+  def __init__(self,  nodes, distort_function, distort_jacobian, inverse_distort_function, 
+               dof_manager, form_function_kit = LinearFormFunctionKit):
     tFiniteElement.__init__(self, nodes, dof_manager)
+
+    self.FormFunctionKit = form_function_kit
+    self.FormFunctions = form_function_kit.formFunctions()
+    self.DifferentiatedFormFunctions = form_function_kit.differentiatedFormFunctions()
+
     assert len(nodes) == len(self.FormFunctions)
 
     self.transformToReal = distort_function
@@ -443,6 +467,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
+    print "boing!"
     builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
@@ -517,13 +542,4 @@ class tDistortedTwoDimensionalLinearTriangularFiniteElement(tDistortedTwoDimensi
       self.Nodes, 
       [ solution_vector[ n ] for n in self.NodeNumbers ],
       triangles, nodes, node_values)
-
-addFormFunctions(
-  tDistortedTwoDimensionalLinearTriangularFiniteElement,
-  form_function.makeFormFunctions(1, [ [0,0], [1,0], [0,1] ]),
-  dimensions = 2)
-
-
-
-
 

@@ -7,12 +7,10 @@ import math
 
 
 def _doIntegration(locations, weights, f):
-  h,w = locations.shape
-  f_values = num.zeros((h,), num.Float)
-  for i in range(0,h):
-    f_values[ i ] = f(locations[ i ])
-
-  return num.innerproduct(weights, f_values)
+  result = 0
+  for weight, location in zip(weights, locations):
+    result += weight * f(location)
+  return result
 
 
 
@@ -28,16 +26,16 @@ INTEGRATION_TRI_WEIGHTS = num.array([
     (155.-math.sqrt(15))/2400.,
     (155.-math.sqrt(15))/2400. ])
 
-INTEGRATION_TRI_LOCATIONS = num.array([
-    [ 1/3.,1/3., ],
+INTEGRATION_TRI_LOCATIONS = [
+    num.array([ 1/3.,1/3., ]),
 
-    [ (6.+math.sqrt(15))/21., (6.+math.sqrt(15))/21. ],
-    [ (9.-2.*math.sqrt(15))/21., (6.+math.sqrt(15))/21. ],
-    [ (6.+math.sqrt(15))/21., (9.-2.*math.sqrt(15))/21. ],
+    num.array([ (6.+math.sqrt(15))/21., (6.+math.sqrt(15))/21. ]),
+    num.array([ (9.-2.*math.sqrt(15))/21., (6.+math.sqrt(15))/21. ]),
+    num.array([ (6.+math.sqrt(15))/21., (9.-2.*math.sqrt(15))/21. ]),
 
-    [ (6.-math.sqrt(15))/21., (6.-math.sqrt(15))/21. ],
-    [ (9.+2.*math.sqrt(15))/21., (6.-math.sqrt(15))/21. ],
-    [ (6.-math.sqrt(15))/21., (9.+2.*math.sqrt(15))/21. ] ])
+    num.array([ (6.-math.sqrt(15))/21., (6.-math.sqrt(15))/21. ]),
+    num.array([ (9.+2.*math.sqrt(15))/21., (6.-math.sqrt(15))/21. ]),
+    num.array([ (6.-math.sqrt(15))/21., (9.+2.*math.sqrt(15))/21. ]) ]
 
 def integrateOnUnitTriangle(f):
   """This function returns the value of 
@@ -46,6 +44,10 @@ def integrateOnUnitTriangle(f):
 
   where T is the right triangle with the cornes (0,0),(1,0),(0,1)."""
   return _doIntegration(INTEGRATION_TRI_LOCATIONS, INTEGRATION_TRI_WEIGHTS, f)
+
+def integrateOnUnitTriangleWithOrder1(f):
+  return 0.5 * f(num.array([1/3., 1/3.]))
+
 
 
 
