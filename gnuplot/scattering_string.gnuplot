@@ -4,6 +4,7 @@ c2 = 1.2
 c1 = 1
 
 f(x)=e**(-x**2)
+#f(x)=sin(x)/x
 
 # Animation data --------------------------------------------------------------
 t = 0
@@ -23,7 +24,7 @@ u(x,t) = x < 0 ? u1(x,t)+u2(x,t) : u3(x,t)
 # Setup -----------------------------------------------------------------------
 max_y = abs( f(0.001) * 1.4 )
 set samples 300
-set yrange [0:max_y]
+set yrange [-max_y:max_y]
 set grid
 
 plot u(x,t)
