@@ -6,6 +6,7 @@ import pyangle
 import tools
 import math
 import fempy.spatial_btree as spatial_btree
+import expression_operators as eo
 
 
 
@@ -26,15 +27,18 @@ class tShapeGuide:
   def evaluate(self, non_deform_coord):
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
 
+  def evaluateToVector(self, non_deform_coord):
+    result = num.zeros((2,), num.Float)
+    result[self.DeformationCoordinate] = expression.evaluate(self.Expression, {"t": non_deform_coord })
+    result[1-self.DeformationCoordinate] = non_deform_coord
+    return result
+
   def containsPoint(self, point, relative_threshold = 1e-10):
     a,b = self.Interval
-    try:
-      non_dc_value = point[1-self.DeformationCoordinate]
-      return min(a,b) <= non_dc_value <= max(a,b) and \
-             abs(self.evaluate(non_dc_value) -
-                 point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
-    except ValueError:
-      return False
+    non_dc_value = point[1-self.DeformationCoordinate]
+    return min(a,b) <= non_dc_value <= max(a,b) and \
+           abs(self.evaluate(non_dc_value) -
+               point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
 
 
 
@@ -53,18 +57,26 @@ class tShapeSection:
       my_shape_guide_list = self.ShapeGuideList[:] + \
                             [self.ShapeGuideList[0]]
 
-    last_point = my_shape_guide_list[0]
-    for i in my_shape_guide_list[1:]:
+    last_point = None
+    for i in my_shape_guide_list:
       if isinstance(i, tShapeGuide):
+        a,b = i.Interval
+        start_point = i.evaluateToVector(a)
+        if last_point is not None:
+          dtl, alpha = tools.distanceToLine(last_point, start_point-last_point, point)
+          if -relative_threshold <= alpha <= 1+relative_threshold and \
+               dtl <= tools.norm2(start_point-last_point) * relative_threshold:
+            return True
         if i.containsPoint(point, relative_threshold):
           return True
         a,b = i.Interval
-        last_point = i.evaluate(b)
+        last_point = i.evaluateToVector(b)
       else:
-        dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
-        if -relative_threshold <= alpha <= 1+relative_threshold and \
-           dtl <= tools.norm2(i-last_point) * relative_threshold:
-          return True
+        if last_point is not None:
+          dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
+          if -relative_threshold <= alpha <= 1+relative_threshold and \
+               dtl <= tools.norm2(i-last_point) * relative_threshold:
+            return True
         last_point = i
     return False
 
@@ -227,7 +239,6 @@ class _tPyangleMesh(tMesh):
       guide = self.findShapeGuideNumber(marker)
       section = self.findShapeSectionByNumber(marker)
 
-      constraint_id = None
       tracking_id = None
       if section:
         tracking_id = section.TrackingId
@@ -290,16 +301,17 @@ class _tPyangleMesh(tMesh):
         # 1<->2 is the guided edge
 
         # t and s are substitution variables used within alpha
-        # t = x+y
-        expr_t = ("+", ("variable", "0"), ("variable", "1"))
-        # s = x-y
-        expr_s = ("-", ("variable", "0"), ("variable", "1"))
+        e_x = (eo.VARIABLE, "0")
+        e_y = (eo.VARIABLE, "1")
+        expr_x_minus_y = (eo.MINUS,e_x,e_y)
 
         # alpha is the blend factor
         # alpha is zero on 2<->0<->1 and one on 1<->2.
-        # alpha = (s^2-t^2)/(s^2-1)
-        expr_alpha = ("/", ("-", ("**", expr_s, 2), ("**", expr_t, 2)),
-                     ("+", 1e-50, ("-", ("**", expr_s, 2), 1)))
+        # alpha = -4xy/((x-y)^2-1)
+        expr_alpha = (eo.DIVIDE, (eo.NEG, (eo.TIMES, (eo.TIMES, 4, e_x), e_y)), 
+                      (eo.PLUS, 1e-50, 
+                       (eo.MINUS, (eo.POWER, expr_x_minus_y, 2), 
+                        1)))
 
         # calculate the forward linear transform 
         node_coords = [node.Coordinates for node in my_nodes]
@@ -307,35 +319,35 @@ class _tPyangleMesh(tMesh):
         mat = num.transpose(num.array([ n - nc0 for n in node_coords[1:] ]))
         matinv = la.inverse(mat)
 
-        variables = [ ("variable","0"), ("variable","1") ]
+        variables = [e_x, e_y]
 
         # assemble expression for forward linear tranform
         expr_linear_transform = [
-          ("+", nc0[0], expression.linearCombination(mat[0], variables)),
-          ("+", nc0[1], expression.linearCombination(mat[1], variables))]
+          (eo.PLUS, nc0[0], expression.linearCombination(mat[0], variables)),
+          (eo.PLUS, nc0[1], expression.linearCombination(mat[1], variables))]
 
         # assemble expression for forward nonlinear transform
         deform_coord = guide.DeformationCoordinate
         non_deform_coord = 1-guide.DeformationCoordinate
 
-        # map s-space [-1,1] to [a,b]
+        # map (x-y)-interval [-1,1] to [a,b]
         a = node_coords[1][non_deform_coord]
         b = node_coords[2][non_deform_coord]
-        expr_guide_argument = ("+",("*",(a-b)/2., expr_s), (b+a)/2.)
+        expr_guide_argument = (eo.PLUS,(eo.TIMES,(a-b)/2., expr_x_minus_y), 
+                               (a+b)/2.)
         expr_guide = expression.substitute(guide.Expression, 
                                             {"t": expr_guide_argument})
         expr_transform = expr_linear_transform[:]
 
-        expr_x_minus_y = ("-",("variable","0"),("variable","1"))
-        expr_reference_x = ("*", ("+", expr_x_minus_y, 1), 0.5)
-        expr_reference_y = ("*", ("-", 1, expr_x_minus_y), 0.5)
-        expr_linear_reference = ("+", 
-                                nc0[deform_coord], 
+        expr_reference_x = (eo.TIMES, (eo.PLUS, expr_x_minus_y, 1), 0.5)
+        expr_reference_y = (eo.TIMES, (eo.MINUS, 1, expr_x_minus_y), 0.5)
+        expr_linear_reference = (eo.PLUS, nc0[deform_coord], 
                                  expression.linearCombination(mat[deform_coord], 
                                                               [expr_reference_x, expr_reference_y]))
-        expr_transform[deform_coord] = ("+",
-                                        ("*", expr_alpha, 
-                                         ("-", expr_guide, expr_linear_reference)),
+        expr_transform[deform_coord] = (eo.PLUS,
+                                        (eo.TIMES, expr_alpha, 
+                                         (eo.MINUS, expr_guide, 
+                                          expr_linear_reference)),
                                         expr_linear_transform[deform_coord])
 
         # compose inverse nonlinear transform

@@ -3,6 +3,7 @@ import tools
 import stopwatch
 import element
 import mesh_function
+import visualization
 import pylinear.matrices as num
 import pylinear.matrix_tools as mtools
 import pylinear.algorithms as algo

@@ -1,5 +1,6 @@
 import pylinear.matrices as num
 import pylinear.linear_algebra as la
+import expression_operators as eo
 import expression
 
 
@@ -44,7 +45,7 @@ def oneAt(*point):
 
 # form function creator -------------------------------------------------------
 def makeFormFunctionExpression(order, dimensions, constraints, extra_expressions = []):
-  variables = [ ("variable","%d" % dim) for dim in range(0, dimensions) ]
+  variables = [ (eo.VARIABLE,"%d" % dim) for dim in range(0, dimensions) ]
   expressions = [ 1 ] + [ expression.multiplyUp(combination)
     for current_ord in range(1, order + 1)
     for combination in generateCombinations(variables, current_ord) ] + extra_expressions

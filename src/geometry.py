@@ -1,5 +1,6 @@
 import math
-import fempy.mesh as mesh
+import mesh
+import expression_operators as eo
 
 
 
@@ -28,22 +29,22 @@ def getCircle(radius, use_exact = True):
 
     # right
     mesh.tShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
-                ("**",("-",r_squared,("**",("variable","t"),2)),0.5),
+                (eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5),
                 use_exact_elements = use_exact),
     
     # top
     mesh.tShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
-                ("**",("-",r_squared,("**",("variable","t"),2)),0.5),
+                (eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5),
                 use_exact_elements = use_exact),
 
     # left
     mesh.tShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
-                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                (eo.NEG,(eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5)),
                 use_exact_elements = use_exact),
 
     # bottom
     mesh.tShapeGuide(1, [-sqrt2_inv,sqrt2_inv],
-                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                (eo.NEG,(eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5)),
                 use_exact_elements = use_exact),
     ]
 

@@ -283,6 +283,15 @@ class tDependentDictionary(object):
     def genuineKeys(self):
         return self._Dictionary.keys()
 
+    def iteritems(self):
+        return self._Dictionary.iteritems()
+
+    def iterkeys(self):
+        return self._Dictionary.iterkeys()
+
+    def itervalues(self):
+        return self._Dictionary.itervalues()
+
 
 
 
