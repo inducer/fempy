@@ -2,13 +2,6 @@ Massematrizen
   Helmholtzgleichung
 Adaptivitaet
 
-Formfunktionen
-Octrees/Quadtrees
-  Funktionsauswertung
-    Numerische Integration
-
-Unstrukturierte/andere Gitter
-
 Komplexe Matrizen
 
 BCs
@@ -17,3 +10,5 @@ BCs
   Floquet
 
 Unit Test
+
+expression.assembleMatrixFunction

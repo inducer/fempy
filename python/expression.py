@@ -1,9 +1,10 @@
 import pattern
-import string
+import types
+import Numeric as num
 from pattern import VAR
 
-# This is a miniature Lisp.
-# Yeah, I know. Sorry, but it is.
+
+
 
 def evaluate( expression, variable_assignments = {} ):
   def ev( expression ):
@@ -208,8 +209,36 @@ def compile( expression, variable_substitutions = {}, variables = [] ):
 
 
 
-#sample = ("+", ("variable","x"),("*", 4,("-",("variable","x")))) 
+# tools -----------------------------------------------------------------------
+def assembleMatrixFunction( function_list ):
+  if type( function_list[0] ) == types.ListType:
+    def f( x ):
+      return num.array( [ [ func( x ) for func in flist ] for flist in function_list ] )
+    return f
+  else:
+    def f( x ):
+      return num.array( [ func( x ) for func in function_list ] )
+    return f
 
-#print compile( sample )(3)
-#print evaluate( sample, {"x":3} )
-#print differentiate( sample, "x" )
+
+
+
+def multiplyUp( list_of_expressions ):
+  if len( list_of_expressions ) == 0:
+    return 1
+  elif len( list_of_expressions ) == 1:
+    return list_of_expressions[0]
+  else:
+    return ("*", list_of_expressions[0], multiplyUp( list_of_expressions[1:] ) )
+
+
+
+
+def linearCombination( coefficients, expressions ):
+  if len( coefficients ) == 0:
+    return 0
+  result = ("*", coefficients[0], expressions[0] )
+  if len( coefficients ) > 1:
+    result = ("+", result, linearCombination( coefficients[1:], expressions[1:] ) )
+  return result
+

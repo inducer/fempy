@@ -1,9 +1,13 @@
 #! /bin/bash
 set -e 
 
-BOOST_PATH=$HOME/work/boost
-PYTHON_INCLUDE_PATH=~/pool/include/python2.3
-PYTHON_INCLUDE_PATH=/usr/include/python2.3
+if test `hostname` = "iamm44p"; then
+  PYTHON_INCLUDE_PATH=~/pool/include/python2.3
+  BOOST_PATH=$HOME/local/work/boost
+else
+  BOOST_PATH=$HOME/work/boost
+  PYTHON_INCLUDE_PATH=/usr/include/python2.3
+fi
 
 function run()
 {

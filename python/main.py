@@ -67,9 +67,9 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
           [ c,d,b, between( c, d ), between( d, b ), between( b, c ) ], 
           dof_manager )
       else:
-        if False:
-          lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,c ], dof_manager )
-          upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ d,a,c ], dof_manager )
+        if True:
+          lower_el = makeDistortedLinearElement( [ a,b,d ], dof_manager )
+          upper_el = makeDistortedLinearElement( [ c,d,b ], dof_manager )
         else:
           lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,d ], dof_manager )
           upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ c,d,b ], dof_manager )
@@ -82,7 +82,7 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
   
 
 
-def buildShapeGeometry( dof_manager, shape_points, refinement_func ):
+def buildShapeGeometry( dof_manager, shape_points, refinement_func, second_order = False ):
   out_p = pyangle.triangulateArea( shape_points, refinement_func = refinement_func )
 
   pts = out_p.Points
@@ -92,14 +92,50 @@ def buildShapeGeometry( dof_manager, shape_points, refinement_func ):
   for node in range( pts.size() ):
     nodes.append( tNode( num.array( [ pts.getSub( node, 0 ), pts.getSub( node, 1 ) ] ) ) )
 
+  between_nodes = {}
+
+  def between( node1, node2 ):
+    if (node1,node2) in between_nodes:
+      return between_nodes[ node1,node2 ]
+    else:
+      new_node = tNode( (node1.coordinates() + node2.coordinates() ) / 2 )
+      nodes.append( new_node )
+      between_nodes[ node1,node2 ] = \
+        between_nodes[ node2,node1 ] = new_node
+      return new_node
+
   elements = []
   for tri in range( tris.size() ):
-    elements.append( tTwoDimensionalLinearTriangularFiniteElement( [ 
-      nodes[ tris.getSub( tri, 0 ) ],
-      nodes[ tris.getSub( tri, 1 ) ],
-      nodes[ tris.getSub( tri, 2 ) ] ], dof_manager ) )
+    a = nodes[ tris.getSub( tri, 0 ) ]
+    b = nodes[ tris.getSub( tri, 1 ) ]
+    c = nodes[ tris.getSub( tri, 2 ) ]
+    if second_order:
+      elements.append( tTwoDimensionalQuadraticTriangularFiniteElement( 
+        [ a, b, c, between( a, b ), between( b, c ), between( c,a ) ], 
+        dof_manager ) )
+    else:
+      elements.append( tTwoDimensionalLinearTriangularFiniteElement( [a,b,c], dof_manager ) )
 
   return nodes,elements
+
+
+
+
+def makeDistortedLinearElement( nodes, dof_manager ):
+  node_coords = [ node.coordinates() for node in nodes ]
+
+  mat = num.array( [ n - node_coords[0] for n in node_coords[1:] ] )
+  matinv = la.inverse( mat )
+
+  vars = [ ("variable","0"), ("variable","1") ]
+  return tDistortedTwoDimensionalLinearTriangularFiniteElement( 
+      nodes, [ 
+        expression.linearCombination( mat[0], vars ), 
+        expression.linearCombination( mat[1], vars ), 
+      ], [
+        expression.linearCombination( matinv[0], vars ), 
+        expression.linearCombination( matinv[1], vars ), 
+      ], dof_manager )
 
 
 
@@ -128,10 +164,10 @@ def poissonDemo():
   center = num.array( [ width/2, height/2 ] )
 
   def f( x ):
-    if norm2( x - center ) < 0.3:
+    if norm2( x - center ) < 0.2:
       return -20
     else:
-      return 0
+      return 20
 
   def u_d( x ):
     if 0.1 < x[0] < 0.9 and x[1] < 0.5:
@@ -145,12 +181,12 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob( "geometry" )
-  #nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
+  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
 
   def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
     return area > 0.001
   shape = [ (0.2,0), (1,0), (1,1), (0,1) ]
-  nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement )
+  #nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement, False )
   job.done()
 
   job = tJob( "btree" )
@@ -168,9 +204,9 @@ def poissonDemo():
 
   s_f1 = makeSolutionFunction( elements, solution, finder )
 
-  #visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
   #visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
-  visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
+  #visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
 

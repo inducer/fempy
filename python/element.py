@@ -7,6 +7,7 @@ import integration
 import expression
 import form_function
 import visualization
+import tools
 
 
 class tFiniteElementError(Exception):
@@ -70,7 +71,7 @@ class tFiniteElement:
   def addVolumeIntegralOverFormFunction( self, builder, f ):
     """This functions adds to the matrix built by `builder' the term 
 
-    \int_{Element} f \phi_i(x,y) d(x,y)
+    \int_{Element} f( (x,y), \phi_i(x,y) ) d(x,y)
 
     where \phi_i runs through all the form functions present in
     the element and f is a function that accepts a unspecified
@@ -193,8 +194,6 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     g10 = self.TransformMatrixInverse[1,0]
     g11 = self.TransformMatrixInverse[1,1]
 
-    fdxr = None;fdyr = None;fdxc = None;fdyc = None;
-
     if which_derivative == "both":
       def functionInIntegral( point ):
 	return ( \
@@ -237,16 +236,17 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     for i in range( n ):
       ff = self.FormFunctions[i]
       influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle( 
-        lambda point: f( self.transformToReal( point ) ) * ff(  point ) )
+        lambda point: f( self.transformToReal( point ) , ff(  point ) ) )
 
     builder.add( influences, self.NodeNumbers )
 
   def getSolutionFunction( self, solution_vector ):
     node_values = num.take( solution_vector, self.NodeNumbers )
     def f( point ):
+      unit_point = self.transformToUnit( point )
       result = 0
       for i in range( 0, self.FormFunctionCount ):
-	result += self.FormFunctions[ i ]( point ) * node_values[ i ]
+	result += self.FormFunctions[ i ]( unit_point ) * node_values[ i ]
       return result
     return f
 
@@ -290,28 +290,48 @@ addFormFunctions(
 # distorted elements ----------------------------------------------------------
 class tDistortedTwoDimensionalTriangularFiniteElement( tFiniteElement ):
   # initialization ------------------------------------------------------------
-  def __init__( self, nodes, distort_expressions, inverse_distort_expressions ):
+  def __init__( self, nodes, distort_expressions, inverse_distort_expressions, dof_manager ):
     tFiniteElement.__init__( self, nodes, dof_manager )
     assert len( nodes ) == len( self.FormFunctions )
 
-    dimensions = 2
+    dimensions = len( distort_expressions )
+
+    self.transformToReal = expression.assembleMatrixFunction( [
+      compileExpression( exp ) for exp in distort_expressions ] )
+    self.transformToUnit = expression.assembleMatrixFunction( [
+      compileExpression( exp ) for exp in inverse_distort_expressions ] )
+
     # create derivatives
-    self.DistortionDerivatives = []
+    distortion_derivatives = []
+    inverse_distortion_derivatives = []
     for dim in range( dimensions ):
-      self.DistortionDerirvatives.append( [] )
-      grad = self.DistortionDerivatives[dim]
+      grad = []
+      inverse_grad = []
       f = distort_expressions[dim]
+      inverse_f = inverse_distort_expressions[dim]
 
       for ddim in range( dimensions ):
-        pass
+        grad.append( 
+          compileExpression(
+            expression.simplify( expression.differentiate( f, "%d" % ddim ) ) ) )
+        inverse_grad.append( 
+          compileExpression( 
+            expression.simplify( expression.differentiate( inverse_f, "%d" % ddim ) ) ) )
+      distortion_derivatives.append( grad )
+      inverse_distortion_derivatives.append( inverse_grad )
+    self.getDistortionDerivatives = expression.assembleMatrixFunction(
+      distortion_derivatives )
+    self.getInverseDistortionDerivatives = expression.assembleMatrixFunction(
+      inverse_distortion_derivatives )
 
-
-
-
-
-
-
-    # FIXME: verify validity
+    # verify validity
+    def inverseNorm( f, inverse_f, point ):
+      return tools.norm2( point - inverse_f( f( point ) ) )
+    inverse_norms = [ 
+      inverseNorm( self.transformToReal, self.transformToUnit, num.array( point ) ) 
+      for point in 
+        [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
+    assert max( inverse_norms ) < 1e-11
     
   # internal helpers ----------------------------------------------------------
   def transformToReal( self, point ):
@@ -334,37 +354,30 @@ class tDistortedTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
-    include_x = 0
-    include_y = 0
-
-    a00 = self.TransformMatrix[0,0]
-    a01 = self.TransformMatrix[0,1]
-    a10 = self.TransformMatrix[1,0]
-    a11 = self.TransformMatrix[1,1]
-
     fdxr = None;fdyr = None;fdxc = None;fdyc = None;
-
-    jacobian_det = 1/(2*self.Area)
 
     if which_derivative == "both":
       def functionInIntegral( point ):
-	return jacobian_det * ( \
-	  ( a00 * fdxr( point ) + a01 * fdyr( point ) ) * \
-	  ( a00 * fdxc( point ) + a01 * fdyc( point ) ) + \
-	  ( a10 * fdxr( point ) + a11 * fdyr( point ) ) * \
-	  ( a10 * fdxc( point ) + a11 * fdyc( point ) ) 
+        g = self.getInverseDistortionDerivatives( self.transformToReal( point ) )
+	return 1. / math.fabs( la.determinant( g ) ) * \
+          ( \
+	  ( g[0,0] * fdxr( point ) + g[1,0] * fdyr( point ) ) * \
+	  ( g[0,0] * fdxc( point ) + g[1,0] * fdyc( point ) ) + \
+	  ( g[0,1] * fdxr( point ) + g[1,1] * fdyr( point ) ) * \
+	  ( g[0,1] * fdxc( point ) + g[1,1] * fdyc( point ) ) 
 	  )
+
     else:
-      raise tFiniteElementError, "which_derivative != 'both' not implemented"
+      raise tFiniteElementError, "which_derivative != 'both' not implemented yet"
 
     node_count = len( self.Nodes )
     influence_matrix = num.zeros( (node_count, node_count), num.Float )
     for row in range( 0, node_count ):
       for column in range( 0, row + 1 ):
-	fdxr = self.FormFunctionsDx[ row ]
-	fdxc = self.FormFunctionsDx[ column ]
-	fdyr = self.FormFunctionsDy[ row ]
-	fdyc = self.FormFunctionsDy[ column ]
+	fdxr = self.DifferentiatedFormFunctions[0][row]
+	fdxc = self.DifferentiatedFormFunctions[0][column]
+	fdyr = self.DifferentiatedFormFunctions[1][row]
+	fdyc = self.DifferentiatedFormFunctions[1][column]
 
 	influence_matrix[row,column] = \
 	influence_matrix[column,row] = \
@@ -373,29 +386,45 @@ class tDistortedTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     builder.add( influence_matrix, self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
-    jacobian_det = self.Area * 2
-    builder.add( jacobian_det * self.FormFunctionCrossIntegrals, 
-	self.NodeNumbers )
+    def functionInIntegral( point ):
+      g = self.getDistortionDerivatives( point )
+      return math.fabs( la.determinant( g ) ) * \
+        fr( point ) * fc( point )
+
+    node_count = len( self.Nodes )
+    influence_matrix = num.zeros( (node_count, node_count), num.Float )
+    for row in range( 0, node_count ):
+      for column in range( 0, row + 1 ):
+	fr = self.FormFunctions[row]
+	fc = self.FormFunctions[column]
+
+	influence_matrix[row,column] = \
+	influence_matrix[column,row] = \
+	    integration.integrateFunctionOnUnitTriangle( functionInIntegral )
+
+    builder.add( influence_matrix, self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunction( self, builder, f ):
     n = self.FormFunctionCount
     influences = num.zeros( (n,), num.Float )
 
-    jacobian_det = self.Area * 2
-
+    def functionInIntegral( point ):
+      g = self.getDistortionDerivatives( point )
+      return math.fabs( la.determinant( g ) ) * \
+        f( self.transformToReal( point ), ff( point ) )
     for i in range( n ):
       ff = self.FormFunctions[i]
-      influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle( 
-        lambda point: f( self.transformToReal( point ) ) * ff(  point ) )
+      influences[i] = integration.integrateFunctionOnUnitTriangle( functionInIntegral )
 
     builder.add( influences, self.NodeNumbers )
 
   def getSolutionFunction( self, solution_vector ):
     node_values = num.take( solution_vector, self.NodeNumbers )
     def f( point ):
+      unit_point = self.transformToUnit( point )
       result = 0
       for i in range( 0, self.FormFunctionCount ):
-	result += self.FormFunctions[ i ]( point ) * node_values[ i ]
+	result += self.FormFunctions[ i ]( unit_point ) * node_values[ i ]
       return result
     return f
 

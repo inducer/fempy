@@ -18,26 +18,6 @@ def generateCombinations( elements, count ):
     
 
 
-def multiplyUp( list_of_variables ):
-  if len( list_of_variables ) == 0:
-    return 1
-  elif len( list_of_variables ) == 1:
-    return list_of_variables[0]
-  else:
-    return ("*", list_of_variables[0], multiplyUp( list_of_variables[1:] ) )
-
-def linearCombination( coefficients, expressions ):
-  if len( coefficients ) == 0:
-    return 0
-  result = ("*", coefficients[0], expressions[0] )
-  if len( coefficients ) > 1:
-    result = ("+", result, linearCombination( coefficients[1:], expressions[1:] ) )
-  return result
-
-
-
-
-
 # constraints -----------------------------------------------------------------
 def hasValueAt( value, point ):
   def getLinearSystemParts( expressions ):
@@ -65,7 +45,7 @@ def oneAt(*point):
 # form function creator -------------------------------------------------------
 def makeFormFunctionExpression( order, dimensions, constraints, extra_expressions = [] ):
   variables = [ ("variable","%d" % dim ) for dim in range( 0, dimensions ) ]
-  expressions = [ 1 ] + [ multiplyUp( combination )
+  expressions = [ 1 ] + [ expression.multiplyUp( combination )
     for ord in range( 1, order + 1 )
     for combination in generateCombinations( variables, ord ) ] + extra_expressions
 
@@ -82,7 +62,7 @@ def makeFormFunctionExpression( order, dimensions, constraints, extra_expression
     rhs[ row ] = rh_scalar
 
   coefficients = la.solve_linear_equations( matrix, rhs )
-  return expression.simplify( linearCombination( coefficients, expressions ) )
+  return expression.simplify( expression.linearCombination( coefficients, expressions ) )
 
 
 

@@ -21,7 +21,8 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
   job = tJob( "matrix" )
   for el in elements:
     el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
-    el.addVolumeIntegralOverFormFunction( b_builder, f )
+    el.addVolumeIntegralOverFormFunction( b_builder, 
+      lambda x,formfunc_value: f(x) * formfunc_value )
   job.done()
 
   job = tJob( "bcs" )
