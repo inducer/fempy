@@ -74,3 +74,12 @@ def findZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
 
 def average(sequence):
   return sum(sequence)/float(len(sequence))
+
+
+
+def allEqual(sequence):
+  item = sequence[0]
+  for i in sequence[1:]:
+    if i != item:
+      return False
+  return True

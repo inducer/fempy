@@ -98,12 +98,12 @@ def getCircle(radius, segments):
   return result
 
 def getUnitCellGeometry(radius, segments = 50, inner_factor = 0.3):
-  return \
-    getParallelogram(radius), \
-    getCircle(radius * inner_factor, segments)
+  return [tShapeSection(getParallelogram(radius), True),
+          tShapeSection(getCircle(radius * inner_factor, segments), False)]
 
 def getExactCircle(radius):
   sqrt2_inv = math.sqrt(2)/2 * radius
+  r_squared = radius * radius
   return [
     # going counterclockwise.
     #
@@ -112,21 +112,25 @@ def getExactCircle(radius):
     #  B 
 
     # right
-    mesh.tShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
-                     ("*",radius,("**",("-",1,("**",(variable,"1"),2)),0.5))),
-
+    tShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
+                ("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+    
     # top
-    mesh.tShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
-                     ("*",radius,("**",("-",1,("**",(variable,"1"),2)),0.5))),
+    tShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
+                ("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
 
     # left
-    mesh.tShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
-                     ("-",("*",radius,("**",("-",1,("**",(variable,"1"),2)),0.5)))),
+    tShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
+                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5))),
 
     # bottom
-    mesh.tShapeGuide(0, [-sqrt2_inv,sqrt2_inv],
-                     ("-",("*",radius,("**",("-",1,("**",(variable,"1"),2)),0.5)))),
+    tShapeGuide(1, [-sqrt2_inv,sqrt2_inv],
+                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5))),
     ]
+
+def getExactUnitCellGeometry(radius, segments = 50, inner_factor = 0.3):
+  return [tShapeSection(getParallelogram(radius), True),
+          tShapeSection(getExactCircle(radius * inner_factor), False)]
 
 
 
@@ -193,18 +197,17 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
   print "Converged with order:", eoc_rec.estimateOrderOfConvergence()[0,1]
   eoc_rec.writeGnuplotFile(",,convergence.data")
 
-  vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  #vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
   #vis.writeGnuplotFile("+result.dat", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
-  #vis.writeVtkFile("+result.vtk", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
+  vis.writeVtkFile("+result.vtk", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
 
 
 
 
 sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
-boundary, inner_boundary = getUnitCellGeometry(radius = 2)
-mesh = tTwoDimensionalSimplicalMesh(boundary, inner_boundary)
+mesh = tTwoDimensionalMesh(getExactUnitCellGeometry(radius = 2))
 #mesh = tTwoDimensionalSimplicalMesh(getParallelogram(2,0.2), [])
-adaptiveDemo(sol, mesh, max_iterations = 15)
+adaptiveDemo(sol, mesh, max_iterations = 7)
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")

@@ -1,7 +1,7 @@
 import pattern
+from pattern import VAR
 import types
 import pylinear.matrices as num
-from pattern import VAR
 import math
 
 
@@ -17,24 +17,33 @@ def ispos(x):
 
 
 
+def matchRuleSet(ruleset, expression):
+  try:
+    return ruleset[expression[0], len(expression)-1](*expression[1:])
+  except TypeError:
+    return ruleset[None](expression)
+
+
+
+
 def evaluate(expression, variable_assignments = {}):
   def ev(expression):
-    return pattern.switch(ruleset, expression)
+    return matchRuleSet(ruleset, expression)
 
-  ruleset = [
-    ("+",VAR,VAR), lambda x,y: ev(x)+ev(y),
-    ("-",VAR,VAR), lambda x,y: ev(x)-ev(y),
-    ("*",VAR,VAR), lambda x,y: ev(x)*ev(y),
-    ("/",VAR,VAR), lambda x,y: ev(x)/ev(y),
-    ("**",VAR,VAR), lambda x,y: ev(x)**ev(y),
-    ("-",VAR) , lambda x: -ev(x),
-    ("sin",VAR), lambda x: math.sin(ev(x)),
-    ("cos",VAR), lambda x: math.cos(ev(x)),
-    ("tan",VAR), lambda x: math.tan(ev(x)),
-    ("ispos",VAR), lambda x: ispos(ev(x)),
-    ("variable",VAR), lambda x: variable_assignments[x],
-    VAR, lambda x: x 
-  ]
+  ruleset = {
+    ("+",2): lambda x,y: ev(x)+ev(y),
+    ("-",2): lambda x,y: ev(x)-ev(y),
+    ("*",2): lambda x,y: ev(x)*ev(y),
+    ("/",2): lambda x,y: ev(x)/ev(y),
+    ("**",2): lambda x,y: ev(x)**ev(y),
+    ("-",1): lambda x: -ev(x),
+    ("sin",1): lambda x: math.sin(ev(x)),
+    ("cos",1): lambda x: math.cos(ev(x)),
+    ("tan",1): lambda x: math.tan(ev(x)),
+    ("ispos",1): lambda x: ispos(ev(x)),
+    ("variable",1): lambda x: variable_assignments[x],
+    None: lambda x: x 
+  }
 
   return ev(expression)
 
@@ -66,7 +75,7 @@ def substitute(expression, variable_assignments = {}):
     VAR, lambda x: x 
   ]
 
-  return ev(expression)
+  return subs(expression)
 
 
 
@@ -97,7 +106,7 @@ def isConstant(expression, variable_assignments = {}):
 
 def differentiate(expression, variable):
   def diff(expression):
-    return pattern.switch(ruleset, expression)
+    return matchRuleSet(ruleset, expression)
   
   def diffVariable(var):
     if var == variable:
@@ -108,21 +117,21 @@ def differentiate(expression, variable):
   def ispos_diff(x):
     raise RuntimeError, "ispos is not differentiable"
 
-  ruleset = [
-    ("+",VAR,VAR), lambda x,y: ("+", diff(x), diff(y)),
-    ("-",VAR,VAR), lambda x,y: ("-", diff(x), diff(y)),
-    ("*",VAR,VAR), lambda x,y: ("+", ("*",diff(x),y),("*",x,diff(y))),
-    ("/",VAR,VAR), lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2)),
+  ruleset = {
+    ("+",2): lambda x,y: ("+", diff(x), diff(y)),
+    ("-",2): lambda x,y: ("-", diff(x), diff(y)),
+    ("*",2): lambda x,y: ("+", ("*",diff(x),y),("*",x,diff(y))),
+    ("/",2): lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2)),
     # This assumes that the exponent is constant.
-    ("**",VAR,VAR), lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
-    ("-",VAR) , lambda x: ("-",diff(x)),
-    ("sin",VAR) , lambda x: ("*", diff(x), ("cos",x)),
-    ("cos",VAR) , lambda x: ("*", ("-", diff(x)), ("sin",x)),
-    ("tan",VAR) , lambda x: ("*", diff(x), ("+", 1, ("**", ("tan", x), 2))),
-    ("ispos",VAR) , ispos_diff,
-    ("variable",VAR), diffVariable,
-    VAR, lambda x: 0.
-  ]
+    ("**",2): lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
+    ("-",1): lambda x: ("-",diff(x)),
+    ("sin",1): lambda x: ("*", diff(x), ("cos",x)),
+    ("cos",1): lambda x: ("*", ("-", diff(x)), ("sin",x)),
+    ("tan",1): lambda x: ("*", diff(x), ("+", 1, ("**", ("tan", x), 2))),
+    ("ispos",1): ispos_diff,
+    ("variable",1): diffVariable,
+    None: lambda x: 0.
+  }
 
   return diff(expression)
 
@@ -183,28 +192,28 @@ def simplify(expression):
     return ("**",x,y)
 
   def simp(expression):
-    return pattern.switch(ruleset, expression)
+    return matchRuleSet(ruleset, expression)
   
-  ruleset = [
-    ("+",("-",VAR),("-",VAR)), lambda x,y: ("-",("+",simplify(x), simplify(y))),
-    ("+",VAR,("-",VAR)), lambda x,y: simplify(("-",simplify(x),simplify(y))),
-    ("*",-1.,VAR), lambda x: ("-",simplify(x)),
-    ("*",VAR,-1.), lambda x: ("-", simplify(x)),
+  ruleset = {
+    #("+",("-",VAR),("-",VAR)), lambda x,y: ("-",("+",simplify(x), simplify(y))),
+    #("+",VAR,("-",VAR)), lambda x,y: simplify(("-",simplify(x),simplify(y))),
+    #("*",-1.,VAR), lambda x: ("-",simplify(x)),
+    #("*",VAR,-1.), lambda x: ("-", simplify(x)),
 
-    ("+",VAR,VAR), simplifyPlus,
-    ("-",VAR,VAR), simplifyMinus,
-    ("*",VAR,VAR), simplifyTimes,
-    ("/",VAR,VAR), simplifyDivision,
+    ("+",2): simplifyPlus,
+    ("-",2): simplifyMinus,
+    ("*",2): simplifyTimes,
+    ("/",2): simplifyDivision,
     # This assumes that the exponent is constant.
-    ("**",VAR,VAR), simplifyPower,
-    ("-",VAR) , lambda x: ("-",simp(x)),
-    ("sin",VAR), lambda x: ("sin",simp(x)),
-    ("cos",VAR), lambda x: ("cos",simp(x)),
-    ("tan",VAR), lambda x: ("tan",simp(x)),
-    ("ispos",VAR), lambda x: ("ispos",simp(x)),
-    ("variable",VAR), lambda x: ("variable",x),
-    VAR, lambda x: x
-  ]
+    ("**",2): simplifyPower,
+    ("-",1): lambda x: ("-",simp(x)),
+    ("sin",1): lambda x: ("sin",simp(x)),
+    ("cos",1): lambda x: ("cos",simp(x)),
+    ("tan",1): lambda x: ("tan",simp(x)),
+    ("ispos",1): lambda x: ("ispos",simp(x)),
+    ("variable",1): lambda x: ("variable",x),
+    None: lambda x: x
+  }
 
   return simp(expression)
 
