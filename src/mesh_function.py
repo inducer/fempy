@@ -9,15 +9,27 @@ import tools
 
 
 def getValueOnElement(element, node_v, unit_point):
-    return element.getFormFunctionCombination(
-        num.take(node_v, element.nodeNumbers()), unit_point)
+    ffs = element.formFunctionKit().formFunctions()
+    nonus = element.nodeNumbers()
+
+    value = ffs[0](unit_point) * node_v[nonus[0]]
+
+    for ff, nonu in zip(ffs, nonus)[1:]:
+        value += ff(unit_point) * node_v[nonu]
+    return value
 
 
 
 
 def getGradientOnElement(element, node_v, unit_point):
-    return element.getFormFunctionCombinationGradient(
-        num.take(node_v, element.nodeNumbers()), unit_point)
+    ffs = element.formFunctionKit().differentiatedFormFunctions()
+    nonus = element.nodeNumbers()
+
+    value = num.array([deriv(unit_point) for deriv in ffs[0]]) * node_v[nonus[0]]
+
+    for grad, nonu in zip(ffs, nonus)[1:]:
+        value += num.array([deriv(unit_point) for deriv in grad]) * node_v[nonu]
+    return value
 
 
 
