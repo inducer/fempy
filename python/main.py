@@ -6,7 +6,9 @@ import spmatrix as sparse
 import itsolvers
 import math
 import pyvtk
-import precon
+import integration
+import expression
+import integration
 
 
 
@@ -23,7 +25,7 @@ def flatten( list ):
 
 def writeSymmetricMatrixAsCSV( filename, matrix ):
   mat_file = file( filename, "w" )
-  w,h = matrix.shape
+  h,w = matrix.shape
   for row in range( 0, h ):
     for column in range( 0, row ):
       mat_file.write( "%f," % matrix[ row, column ] )
@@ -40,21 +42,45 @@ def norm2( vector ):
 
 
 
+def sequence2list( sequence ):
+  result = []
+  for i in sequence:
+    result.append( i )
+  return result
+
+
+
+
+def vector2tuple( vector ):
+  size, = vector.shape
+  if size == 2:
+    return vector[ 0 ], vector[ 1 ], 0
+  else:
+    return vector[ 0 ], vector[ 1 ], vector[ 2 ]
+
+
+
+
 # matrix building -------------------------------------------------------------
 class tDOFManager:
   def __init__( self ):
-    self.DegreesOfFreedom = { }
+    self.IdentifierToNumber = { }
+    self.NumberToIdentifier = [ ]
 
-  def obtainDegreeOfFreedom( self, identifier ):
-    if identifier in self.DegreesOfFreedom:
-      return self.DegreesOfFreedom[ identifier ]
+  def getDegreeOfFreedomNumber( self, identifier ):
+    if identifier in self.IdentifierToNumber:
+      return self.IdentifierToNumber[ identifier ]
     else:
-      new_dof_id = len( self.DegreesOfFreedom )
-      self.DegreesOfFreedom[ identifier ] = new_dof_id
+      new_dof_id = len( self.NumberToIdentifier )
+      self.IdentifierToNumber[ identifier ] = new_dof_id
+      self.NumberToIdentifier.append( identifier )
       return new_dof_id
 
+  def getDegreeOfFreedomIdentifier( self, number ):
+    return self.NumberToIdentifier[ number ]
+
   def countDegreesOfFreedom( self ):
-    return len( self.DegreesOfFreedom )
+    return len( self.NumberToIdentifier )
 
 
 
@@ -79,7 +105,7 @@ class tMatrixBuilder:
 
   def forceIdentityMap( self, dof_number ):
     mat = self.Matrix
-    w,h = mat.shape
+    h,w = mat.shape
 
     for i in range( 0, w ):
       mat[ dof_number, i ] = 0
@@ -99,7 +125,7 @@ class tSymmetricSparseMatrixBuilder( tMatrixBuilder ):
 
   def forceIdentityMap( self, dof_number ):
     mat = self.Matrix
-    w,h = mat.shape
+    h,w = mat.shape
 
     # FIXME: optimize with slicing syntax
     for i in range( 0, dof_number ):
@@ -109,7 +135,7 @@ class tSymmetricSparseMatrixBuilder( tMatrixBuilder ):
     mat[ dof_number, dof_number ] = 1.
 
   def column( self, i ):
-    w,h = self.Matrix.shape
+    h,w = self.Matrix.shape
     col = num.zeros( (h,), num.Float )
     for j in range( 0, i ):
       col[ j ] = self.Matrix[ i,j ]
@@ -164,7 +190,7 @@ class tDenseMatrixBuilder( tMatrixBuilder ):
     return self.Matrix
 
   def add( self, small_matrix, small_matrix_rows, small_matrix_columns = None ):
-    w,h = self.Matrix.shape
+    h,w = self.Matrix.shape
     if small_matrix_columns is None:
       small_matrix_columns = small_matrix_rows
 
@@ -208,6 +234,13 @@ class tFiniteElement:
   given indirectly through a tMatrixBuilder."""
   def __init__( self, nodes, dof_manager ):
     self.Nodes = nodes
+    self.NodeNumbers = map( dof_manager.getDegreeOfFreedomNumber, self.Nodes )
+
+  def nodes( self ):
+    return self.Nodes
+
+  def nodeNumbers( self ):
+    return self.NodeNumbers
 
   def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
     """This functions adds to the matrix built by `builder' the term 
@@ -248,7 +281,30 @@ class tFiniteElement:
 
 
 
-class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
+class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
+  # form function compilation -------------------------------------------------
+  FormFunctionExpressions = [ 
+    ("-",1,("+",("variable","x"),("variable","y"))),
+    ("variable","x"),
+    ("variable","y"),
+    ]
+
+  def ffcompile( expr ):
+    return expression.compile( expr, { "x": "point[0]", "y": "point[1]" }, [ "point" ] )
+
+  FormFunctions = \
+    [ ffcompile( expr ) for expr in FormFunctionExpressions ]
+  FormFunctionsDx = \
+    [ ffcompile( expression.simplify( expression.differentiate( expr, "x" ) ) )
+      for expr in FormFunctionExpressions ]
+  FormFunctionsDy = \
+    [ ffcompile( expression.simplify( expression.differentiate( expr, "y" ) ) )
+      for expr in FormFunctionExpressions ]
+
+
+
+
+  # initialization ------------------------------------------------------------
   def __init__( self, nodes, dof_manager ):
     tFiniteElement.__init__( self, nodes, dof_manager )
     self.X = map( lambda node: node.coordinates()[ 0 ], self.Nodes )
@@ -257,10 +313,16 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
     x = self.X
     y = self.Y
 
-    self.Area = ( 
-    (x[1]-x[0])*(y[2]-y[0])-
-    (x[2]-x[0])*(y[1]-y[0]) 
-    ) * 0.5
+    self.TransformMatrix = num.array( [
+	[ x[1] - x[0], x[2] - x[0] ],
+	[ y[1] - y[0], y[2] - y[0] ] ] )
+    self.TransformMatrixInverse = la.inverse( self.TransformMatrix )
+    self.Origin = nodes[0].coordinates()
+
+    self.Area = 0.5 * math.fabs( la.determinant( self.TransformMatrix ) )
+    
+  def transformToUnit( self, point ):
+    return num.matrixmultiply( self.TransformMatrixInverse, point - self.Origin )
 
   def area( self ):
     return self.Area
@@ -271,44 +333,44 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
       self.Nodes[1:],
       self.Nodes[0].coordinates() ) * ( 1./len( self.Nodes ) )
 
-
-
-
-class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
-  # cf. \cite{50linesofmatlab} 
-  # also see related axiom calculation 50_lines_of_matlab_matrix_m.tm
-
-  def __init__( self, nodes, dof_manager ):
-    tTwoDimensionalTriangularFiniteElement.__init__( self, nodes, dof_manager )
-    x = self.X
-    y = self.Y
-    mymat2 = num.array( [x,y] )
-    mymat = num.concatenate(
-       num.ones( (1,3) ), mymat2 )
-    self.InvCoordinateMatrix = la.inverse( num.concatenate(
-       ( num.ones( (1,3) ), num.array( [x,y] ) ) ) )
-
-    self.NodeIds = map( dof_manager.obtainDegreeOfFreedom, self.Nodes )
-
   def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
     include_x = 0
     include_y = 0
 
-    if which_derivative == "x":
-      include_x = 1
-    elif  which_derivative == "y":
-      include_y = 1
-    elif which_derivative == "both":
-      include_x = 1
-      include_y = 1
-    else:
-      raise tFiniteElementError, "addVolumeIntegral: which_derivative invalid"
+    a00 = self.TransformMatrix[0,0]
+    a01 = self.TransformMatrix[0,1]
+    a10 = self.TransformMatrix[1,0]
+    a11 = self.TransformMatrix[1,1]
 
-    g = num.matrixmultiply( self.InvCoordinateMatrix, num.array(
-      [ [ 0, 0 ], [ include_y, 0 ], [ 0, include_x ] ] ) )
-    influence_matrix = self.Area * \
-      num.matrixmultiply( g, num.transpose( g ) )
-    builder.add( influence_matrix, self.NodeIds )
+    fdxr = None;fdyr = None;fdxc = None;fdyc = None;
+
+    jacobian = 1/(2*self.Area)
+
+    if which_derivative == "both":
+      def functionInIntegral( point ):
+	return jacobian * ( \
+	  ( a00 * fdxr( point ) + a01 * fdyr( point ) ) * \
+	  ( a00 * fdxc( point ) + a01 * fdyc( point ) ) + \
+	  ( a10 * fdxr( point ) + a11 * fdyr( point ) ) * \
+	  ( a10 * fdxc( point ) + a11 * fdyc( point ) ) 
+	  )
+    else:
+      raise tFiniteElementError, "which_derivative != 'both' not implemented"
+
+    node_count = len( self.Nodes )
+    influence_matrix = num.zeros( (node_count, node_count), num.Float )
+    for row in range( 0, node_count ):
+      for column in range( 0, row + 1 ):
+	fdxr = self.FormFunctionsDx[ row ]
+	fdxc = self.FormFunctionsDx[ column ]
+	fdyr = self.FormFunctionsDy[ row ]
+	fdyc = self.FormFunctionsDy[ column ]
+
+	influence_matrix[row,column] = \
+	influence_matrix[column,row] = \
+	    integration.integrateFunctionOnUnitTriangle( functionInIntegral )
+
+    builder.add( influence_matrix, self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
     raise tFiniteElementError, "NYI: addVolumeIntegralOverFormFunctions" 
@@ -317,7 +379,7 @@ class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFin
     # FIXME: this is way past inexact
     # is real numerical integration worth the fuss here?
     influences = num.ones( len( self.Nodes ) ) * self.Area * (1/3.) * f( self.barycenter() )
-    builder.add( influences, self.NodeIds )
+    builder.add( influences, self.NodeNumbers )
 
 
 
@@ -379,7 +441,7 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
   print "bcs..."
   for node in dirichlet_nodes:
     boundary_value = u_d( node.coordinates() )
-    i = dof_manager.obtainDegreeOfFreedom( node )
+    i = dof_manager.getDegreeOfFreedomNumber( node )
     b_mat += s_builder.column( i ) * boundary_value
     s_builder.forceIdentityMap( i )
     b_mat[ i ] = -boundary_value
@@ -390,15 +452,15 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
 
   print "solving..."
   info, iter, relres = itsolvers.pcg( compiled_s, negated_b, x, 1e-12, dof_count )
-  print "info:", info
-  print "iter:", iter
-  print "relres:", relres
+  print "  info:", info
+  print "  iter:", iter
+  print "  relative residual: ", relres
 
   residual = num.zeros( x.shape, num.Float )
   compiled_s.matvec( x, residual )
 
   residual -= b_mat
-  print norm2( residual )
+  print "  absolute residual: ", norm2( residual )
 
   return x
 
@@ -415,8 +477,31 @@ def writeGnuplotFile( name, nodes, dof_manager, solution ):
 	node.coordinates()[1],
 	solution[ dof_manager.obtainDegreeOfFreedom( node ) ] ) )
 
-def writeVtkFile( name, nodes, values ):
-  pass
+def writeVtkFile( name, dof_manager, elements, solution ):
+  dof_count = dof_manager.countDegreesOfFreedom()
+
+  points_list = []
+  for dof in range( 0, dof_count ):
+    points_list.append( vector2tuple (
+	dof_manager.getDegreeOfFreedomIdentifier( dof ).coordinates() ) )
+
+  polygon_list = []
+  for el in elements:
+    polygon_list.append( el.nodeNumbers() )
+
+  structure = pyvtk.PolyData( points=points_list, polygons=polygon_list)
+
+  solution_list = []
+  for i in solution:
+    solution_list.append( i )
+
+  pointdata = pyvtk. PointData(
+      pyvtk. Scalars(solution_list, name="solution", lookup_table = "default") )
+
+  vtk = pyvtk.VtkData( structure, 'SimsalaFem result', pointdata )
+  vtk.tofile( name, "ascii" )
+
+
 
 
 # driver ----------------------------------------------------------------------
@@ -424,25 +509,27 @@ def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 20
-  ny = 20
+  nx = 100
+  ny = 100
 
   center = num.array( [ width/2, height/2 ] )
 
-  def f( coord ):
-    if norm2( coord - center ) < 0.2:
-      return 20
+  def f( x ):
+    if norm2( x - center ) < 0.3:
+      return 0
     else:
       return 0
 
-  def u_d( coord ):
-    return norm2(coord-center)
+  def u_d( x ):
+    return math.sin( 5 * ( x[0] + x[1] ) ) + 1
+    #return norm2( x - center )
 
   dof_manager = tDOFManager()
+
   print "geometry..."
   nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny )
 
-  # make the corner nodes dirichlet nodes
+  # make the edge nodes dirichlet nodes
   dirichlet_nodes = []
   dirichlet_nodes.extend( nodes[0] )
   dirichlet_nodes.extend( nodes[-1] )
@@ -451,7 +538,7 @@ def poissonDemo():
   
   solution = solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d )
 
-  writeGnuplotFile( "result.dat", nodes, dof_manager, solution )
+  writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
 
