@@ -229,6 +229,9 @@ class tShapeGuide:
     self.InitialPointCount = initial_point_count
     self.RenderFinalPoint = render_final_point
 
+  def evaluate(self, non_deform_coord):
+    return expression.evaluate(self.Expression, {"t": non_deform_coord })
+
 class tShapeSection:
   def __init__(self, shape_guide_list, is_boundary):
     self.ShapeGuideList = shape_guide_list
@@ -292,8 +295,7 @@ class _tPyangleMesh(tMesh):
 
       if isinstance(guide, tShapeGuide):
         c = guide.DeformationCoordinate
-        pts.setSub(no, c, 
-                   expression.evaluate(guide.Expression, {"t": pts.getSub(no, 1-c) }))
+        pts.setSub(no, c, guide.evaluate(pts.getSub(no, 1-c)))
 
       node = element.tNode(num.array([pts.getSub(no, 0), pts.getSub(no, 1)]))
 
@@ -310,33 +312,54 @@ class _tPyangleMesh(tMesh):
     for tri in range(tris.size()):
       node_numbers = [tris.getSub(tri, 0), tris.getSub(tri, 1),
         tris.getSub(tri, 2)]
-      my_nodes = [nodes[no] for no in node_numbers]
 
-      shape_guides = []
-      actual_shape_guides = []
-      guided_nodes = []
-
-      for index,no in zip(range(3),node_numbers):
-        guide = self.findShapeGuideNumber(out_p.PointMarkers.get(no))
-        shape_guides.append(guide)
-        if isinstance(guide, tShapeGuide):
-          actual_shape_guides.append(guide)
-          guided_nodes.append(no)
+      def guideContainsNode(guide, node):
+        coords = node.coordinates()
+        a,b = guide.Interval
+        scale = math.fabs(b-a)
+        c = guide.DeformationCoordinate
+        if min(a,b) <= coords[1-c] <= max(a,b):
+          return math.fabs(guide.evaluate(coords[1-c])-coords[c]) < 1e-10 * scale
         else:
-          index_unguided = index
+          return False
 
-      if len(guided_nodes) <= 1 or not tools.allEqual(actual_shape_guides):
+      possible_guides = []
+      guided_nodes = []
+      for no in node_numbers:
+        guide = self.findShapeGuideNumber(out_p.PointMarkers.get(no))
+        if isinstance(guide, tShapeGuide) and guide not in possible_guides:
+          my_guided_nodes = []
+          for index, no_ in zip(range(3),node_numbers):
+            if guideContainsNode(guide, nodes[no_]):
+              my_guided_nodes.append(nodes[no_])
+            else:
+              my_index_unguided = index
+
+          if len(my_guided_nodes) == 3:
+            raise RuntimeError, "can't guide three points with a single guide"
+          elif len(my_guided_nodes) == 2:
+            possible_guides.append(guide)
+            if len(possible_guides) == 1:
+              guided_nodes = my_guided_nodes
+              index_unguided = my_index_unguided
+
+      if len(possible_guides) > 1:
+        print "WARNING: found more than one possible guide"
+
+      if len(possible_guides) == 0:
         # none of the edges are guided
+        my_nodes = [nodes[no] for no in node_numbers]
         elements.append(
             element.tTwoDimensionalLinearTriangularFiniteElement(
               my_nodes, self.DOFManager))
-      elif len(guided_nodes) == 2:
+      elif len(possible_guides) >= 1:
         # one edge is guided
 
         # rotate list such that unguided node comes first
         node_numbers = [node_numbers[(index_unguided+i)%3] for i in range(3)]
+        my_nodes = [nodes[no] for no in node_numbers]
 
-        guide = actual_shape_guides[0]
+        guide = possible_guides[0]
 
         # 2
         # |\
@@ -376,7 +399,7 @@ class _tPyangleMesh(tMesh):
         # map s-space [-1,1] to [a,b]
         a = node_coords[1][non_deform_coord]
         b = node_coords[2][non_deform_coord]
-        expr_guide_argument = ("+",("*",(b-a)/2., expr_s), (b+a)/2.)
+        expr_guide_argument = ("+",("*",(a-b)/2., expr_s), (b+a)/2.)
         expr_guide = expression.substitute(guide.Expression, 
                                             {"t": expr_guide_argument})
         expr_transform = expr_linear_transform[:]
@@ -420,6 +443,10 @@ class _tPyangleMesh(tMesh):
               write(x,y+h)
               deform_file.write("\n\n")
 
+          nodes_before = [[0,0], [1,0], [0,1]]
+          for i in range(3):
+            assert tools.norm2(node_coords[i] - txtoreal(nodes_before[i])) < 1e-10
+
         # compose inverse nonlinear transform
         func_transform = expression.compileVectorField(expr_transform)
         func_transform_jacobian = expression.compileMatrixFunction(
@@ -438,9 +465,6 @@ class _tPyangleMesh(tMesh):
           func_transform, 
           func_transform_jacobian,
           inv_func, self.DOFManager))
-      elif len(guided_nodes) == 3:
-        # more than one edge is guided
-        raise RuntimeError, "More than one edge is guided. This is currently unsupported."
 
     self.Nodes = nodes
     self.Elements = elements

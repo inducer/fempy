@@ -61,10 +61,10 @@ def compileInfo(dof_manager, elements, node_data):
       index += 1
 
     index = -1
-    for coords in data.ExtraNodeCoordinates:
+    for coords, value in zip(data.ExtraNodeCoordinates, data.ExtraNodeValues):
       local_nodes[ index ] = len(nodes)
       nodes.append(coords)
-      values.append(data.ExtraNodeValues[ -(index+1) ])
+      values.append(value)
       index -= 1
 
     for na,nb,nc in data.Triangles:

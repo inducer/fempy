@@ -438,10 +438,49 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 # distorted two-dimensional triangular finite elements ------------------------
 class tDistortedTwoDimensionalLinearTriangularFiniteElement(tDistortedTwoDimensionalTriangularFiniteElement):
   def visualizationData(self, solution_vector):
+    node_numbers_laid_out = []
+    nodes = []
+    node_values = []
+
+    segments = 8
+    h = 1./segments
+
+    for x_n in range(segments+1):
+      x = x_n * h
+      line_of_node_numbers = []
+      for y_n in range(segments-x_n+1):
+        y = y_n * h
+        nodes.append(self.transformToReal(num.array([x,y])))
+        line_of_node_numbers.append(-len(nodes))
+
+        value = 0
+        for i in range(0, self.FormFunctionCount):
+          value += self.FormFunctions[i](num.array([x,y])) * \
+                   solution_vector[self.NodeNumbers[i]]
+        node_values.append(value)
+      node_numbers_laid_out.append(line_of_node_numbers)
+
+    node_numbers_laid_out[0][0] = 0
+    node_numbers_laid_out[-1][0] = 1
+    node_numbers_laid_out[0][-1] = 2
+
+    triangles = []
+    for x_n in range(segments):
+      for y_n in range(segments-x_n):
+        triangles.append(
+          (node_numbers_laid_out[x_n][y_n],
+           node_numbers_laid_out[x_n+1][y_n],
+           node_numbers_laid_out[x_n][y_n+1]))
+        if y_n != segments-x_n-1:
+          triangles.append(
+            (node_numbers_laid_out[x_n+1][y_n+1],
+             node_numbers_laid_out[x_n][y_n+1],
+             node_numbers_laid_out[x_n+1][y_n]))
+
     return visualization.tVisualizationData(
-	self.Nodes, 
-	[ solution_vector[ n ] for n in self.NodeNumbers ],
-	[ (0,1,2) ])
+      self.Nodes, 
+      [ solution_vector[ n ] for n in self.NodeNumbers ],
+      triangles, nodes, node_values)
 
 addFormFunctions(
   tDistortedTwoDimensionalLinearTriangularFiniteElement,

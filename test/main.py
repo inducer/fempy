@@ -128,9 +128,9 @@ def getExactCircle(radius):
                 ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5))),
     ]
 
-def getExactUnitCellGeometry(radius, segments = 50, inner_factor = 0.3):
-  return [tShapeSection(getParallelogram(radius), True),
-          tShapeSection(getExactCircle(radius * inner_factor), False)]
+def getExactUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3):
+  return [tShapeSection(getParallelogram(edge_length), True),
+          tShapeSection(getExactCircle(edge_length * inner_factor), False)]
 
 
 
@@ -162,8 +162,8 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       rhs_c, sol_c, start_solution_vector)
 
     job = tJob("error")
-    my_estimator = error_estimator.tAnalyticSolutionH1ErrorEstimator(
-      new_mesh, solution_vector, sol_c, grad_sol_c)
+    my_estimator = error_estimator.tAnalyticSolutionL2ErrorEstimator(
+      new_mesh, solution_vector, sol_c)
 
     errors = map(my_estimator, new_mesh.elements())
     worst_error = max(errors)
@@ -175,17 +175,11 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     else:
       max_error = 0.5 * worst_error
 
-    visualization.visualizePerElementData("/tmp/errors_%d.m" % it_number.get(),
-                                          visualization.writeMatlabFile,
-                                          new_mesh, my_estimator)
     def refine_decision(el):
       if my_estimator(el) >= max_error:
         return 1
       else:
         return 0
-    visualization.visualizePerElementData("/tmp/refinement_%d.m" % it_number.get(),
-                                          visualization.writeMatlabFile,
-                                          new_mesh, refine_decision)
 
     eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError())
     job.done()
@@ -205,9 +199,9 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
 
 sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
-mesh = tTwoDimensionalMesh(getExactUnitCellGeometry(radius = 2))
+mesh = tTwoDimensionalMesh(getExactUnitCellGeometry(edge_length = 2))
 #mesh = tTwoDimensionalSimplicalMesh(getParallelogram(2,0.2), [])
-adaptiveDemo(sol, mesh, max_iterations = 7)
+adaptiveDemo(sol, mesh, max_iterations = 6)
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")

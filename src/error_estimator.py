@@ -60,6 +60,7 @@ class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
 
   def _getEstimate(self, element):
     def approxFirstDerivative(f, point, direction):
+      print point, direction
       # centered difference
       return (f(point + scale * direction) - f(point - scale * direction)) / (2 * scale)
 
