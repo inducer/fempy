@@ -50,14 +50,6 @@ def getCircle(radius, use_exact = True):
 
 
 
-def getUnitCellGeometry(grid_vectors, inner_radius, 
-                        use_exact = True, constraint_id = "dirichlet"):
-  return [mesh.tShapeSection(getParallelogram(grid_vectors), constraint_id),
-          mesh.tShapeSection(getCircle(inner_radius, use_exact), None)]
-
-
-
-
 def getAnnulusGeometry(outer_radius, inner_radius, use_exact = True):
   return [mesh.tShapeSection(getCircle(outer_radius, use_exact), "dirichlet"),
           mesh.tShapeSection(getCircle(inner_radius, use_exact), "dirichlet")]

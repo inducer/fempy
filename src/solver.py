@@ -247,7 +247,8 @@ def rayleighQuotient(s, m, vec):
 
 class tLaplacianEigenproblemSolver:
     def __init__(self, mesh, constrained_nodes,
-                 f = None, g = lambda x: 1., typecode = num.Float):
+                 f = None, g = lambda x: 1., typecode = num.Float,
+                 given_number_assignment = None):
         """Solve the eigenproblem of the Laplace operator:
         
         laplace u + f * u = g * lambda * u.
@@ -257,11 +258,24 @@ class tLaplacianEigenproblemSolver:
         
         dof_manager = mesh.dofManager()
         unconstrained_nodes = [node for node in dof_manager if node not in constrained_nodes]
-        number_assignment = self.NumberAssignment = \
-                            element.assignNodeNumbers(unconstrained_nodes)
-        complete_number_assignment = self.CompleteNumberAssignment = \
-                                     element.assignNodeNumbers(constrained_nodes, 
-                                                               number_assignment)
+        if given_number_assignment is None:
+            # construct new node number assignment
+            number_assignment = self.NumberAssignment = \
+                                element.assignNodeNumbers(unconstrained_nodes)
+            complete_number_assignment = self.CompleteNumberAssignment = \
+                                         element.assignNodeNumbers(constrained_nodes, 
+                                                                   number_assignment)
+        else:
+            # make sure that the given node number assignment conforms to our convention
+            assert max(given_number_assignment.values()) == len(mesh.dofManager()) - 1
+
+            complete_number_assignment = self.CompleteNumberAssignment = \
+                                         given_number_assignment
+            number_assignment = self.NumberAssignment = {}
+            for node in unconstrained_nodes:
+                assert given_number_assignment[node] < len(unconstrained_nodes)
+                number_assignment[node] = given_number_assignment[node]
+                                
         dof_count = len(unconstrained_nodes)
 
         self.FullS = buildStiffnessMatrix(mesh, complete_number_assignment, typecode)
@@ -281,7 +295,10 @@ class tLaplacianEigenproblemSolver:
         self.ConstrainedSOp = self.ConstrainedMOp = None
 
     def massMatrix(self):
-        return self.FullM
+        return num.asarray(self.FullM, self.FullM.typecode(), num.SparseExecuteMatrix)
+
+    def nodeNumberAssignment(self):
+        return self.CompleteNumberAssignment
 
     def currentConstraints(self):
         return self.CurrentConstraints

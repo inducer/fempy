@@ -3,6 +3,7 @@ import element
 import pylinear.matrices as num
 import pylinear.matrix_tools as mtools
 import pylinear.linear_algebra as la
+import pylinear.algorithms as algo
 import stopwatch
 import tools
 
@@ -68,17 +69,32 @@ class tMeshFunction(object):
 
         return self.copy(vector = self.Vector + other.Vector)
 
+    def __iadd__(self, other):
+        assert self.Mesh is other.Mesh
+        assert self.NumberAssignment is other.NumberAssignment
+
+        self.Vector += other.Vector
+        return self
+
     def __sub__(self, other):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
 
         return self.copy(vector = self.Vector - other.Vector)
 
+    def __isub__(self, other):
+        assert self.Mesh is other.Mesh
+        assert self.NumberAssignment is other.NumberAssignment
+
+        self.Vector -= other.Vector
+        return self
+
     def __mul__(self, factor):
         return self.copy(vector = factor * self.Vector)
 
     def __imul__(self, factor):
         self.Vector *= factor
+        return self
 
     def __rmul__(self, factor):
         return self.copy(vector = factor * self.Vector)
@@ -86,8 +102,9 @@ class tMeshFunction(object):
     def __div__(self, divisor):
         return self.copy(vector = self.Vector/ divisor)
 
-    def __imul__(self, divisor):
+    def __idiv__(self, divisor):
         self.Vector /= divisor
+        return self
 
     def realPart(self):
         return self.copy(vector = self.Vector.real)
@@ -150,6 +167,29 @@ def discretizeFunction(mesh, f, typecode = num.Float, number_assignment = None):
         vector[number_assignment[node]] = f(node.Coordinates)
 
     return tMeshFunction(mesh, number_assignment, vector)
+
+
+
+
+def discretizeFunctionByIntegrals(mesh, f, mass_matrix, number_assignment, 
+                       typecode = num.Float):
+    # use the formula:
+    # \sum_j\alpha_j \int\psi_i(x)\psi_j(x) dx =!= \int f(x) \psi_i(x)
+    # <=>
+    # M \alpha = \beta
+    # where \alpha and \beta are vectors.
+
+    mass_matrix = num.asarray(mass_matrix, typecode)
+    beta = num.zeros((len(mesh.dofManager()),), typecode)
+    for el in mesh.elements():
+        vol_ints = el.getVolumeIntegralsOverFormFunction(lambda x, phi_x: f(x)*phi_x,
+                                                         typecode)
+        for node, vol_int in zip(el.nodes(), vol_ints):
+            beta[number_assignment[node]] += vol_int
+
+    alpha = mtools.solve_linear_system_cg(mass_matrix, beta)
+    
+    return tMeshFunction(mesh, number_assignment, alpha)
 
 
 

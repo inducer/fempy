@@ -153,7 +153,7 @@ class tFiniteElement(object):
         """
         raise RuntimeError, "not implemented"
 
-    def getVolumeIntegralsOverFormFunction(self, f):
+    def getVolumeIntegralsOverFormFunction(self, f, typecode = num.Float):
         """This functions adds to the matrix built by `builder' the term 
         
         \int_{Element} f((x,y), \phi_i(x,y)) d(x,y)
@@ -390,9 +390,9 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
         return jacobian_det * influence_matrix
 
-    def getVolumeIntegralsOverFormFunction(self, f):
+    def getVolumeIntegralsOverFormFunction(self, f, typecode = num.Float):
         n = len(self.FormFunctions)
-        influences = num.zeros((n,), num.Float)
+        influences = num.zeros((n,), typecode)
         
         jacobian_det = self.Area * 2
 
@@ -522,9 +522,9 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
         return influence_matrix
     
-    def getVolumeIntegralsOverFormFunction(self,  f):
+    def getVolumeIntegralsOverFormFunction(self,  f, typecode = num.Float):
         n = len(self.FormFunctions)
-        influences = num.zeros((n,), num.Float)
+        influences = num.zeros((n,), typecode)
         
         def functionInIntegral(point):
             g = self.getTransformJacobian(point)

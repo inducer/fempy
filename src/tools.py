@@ -688,24 +688,40 @@ def reverseDictionary(the_dict):
 
 
 
-def generateIntegerTuplesBelow(n, length, least = 0):
+def generatePositiveIntegerTuplesBelow(n, length, least = 0):
     assert length >= 0
     if length == 0:
         yield []
     else:
         for i in range(least, n):
-            for base in generateIntegerTuplesBelow(n, length-1, least):
+            for base in generatePositiveIntegerTuplesBelow(n, length-1, least):
                 yield [i] + base
 
-def generateAllIntegerTuples(length, least = 0):
+def generateAllPositiveIntegerTuples(length, least = 0):
     assert length >= 0
     current_max = least
     while True:
         for max_pos in range(length):
-            for prebase in generateIntegerTuplesBelow(current_max, max_pos, least):
-                for postbase in generateIntegerTuplesBelow(current_max+1, length-max_pos-1, least):
+            for prebase in generatePositiveIntegerTuplesBelow(current_max, max_pos, least):
+                for postbase in generatePositiveIntegerTuplesBelow(current_max+1, length-max_pos-1, least):
                     yield prebase + [current_max] + postbase
         current_max += 1
+
+def _posAndNegAdaptor(tuple_iter):
+    for tup in tuple_iter:
+        nonzero_indices = [i for i in range(len(tup)) if tup[i] != 0]
+        for do_neg_tup in generatePositiveIntegerTuplesBelow(2, len(nonzero_indices)):
+            this_result = list(tup)
+            for index, do_neg in enumerate(do_neg_tup):
+                if do_neg:
+                    this_result[nonzero_indices[index]] *= -1
+            yield tuple(this_result)
+
+def generateAllIntegerTuplesBelow(n, length, least_abs = 0):
+    return _posAndNegAdaptor(generatePositiveIntegerTuplesBelow(n, length, least_abs))
+
+def generateAllIntegerTuples(length, least_abs = 0):
+    return _posAndNegAdaptor(generateAllPositiveIntegerTuples(length, least_abs))
             
 
 
