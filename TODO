@@ -19,8 +19,6 @@ adaptiveloop:
   time dependent problems
   different termination conditions
   eigenvalue usability
-  wie kommt eoc rein?
-    als wrapper um verschiedene error estimators?
 
 error estimator implementations:
   - L2, a posteriori estimate
@@ -31,9 +29,5 @@ analytically bounded mesh
   spezifikation ueber deformationsfelder
     mit "deformationshauptachse"
   -> implementieren
-
-wer entscheidet ueber randknoten?
-  benutzer?
-  mesh?
 
 elemente muessen ihre nachbarn kennen

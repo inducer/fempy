@@ -80,6 +80,7 @@ class tMesh:
     self.Nodes = []
     self.Elements = []
     self.HangingNodes = []
+    self.BoundaryNodes = []
 
   def dofManager(self):
     return self.DOFManager
@@ -103,6 +104,12 @@ class tMesh:
     """
     return self.HangingNodes
 
+  def boundaryNodes(self):
+    """Returns a list of nodes that form the outer boundary of the given
+    geometry.
+    """
+    return self.BoundaryNodes
+
   def getRefinement(self, element_needs_refining):
     """Returns a tMeshChange that represents a refined mesh
     based on the element_needs_refining function passed as
@@ -113,9 +120,9 @@ class tMesh:
     return None
 
   def findElement(self, element):
-    if self.ElementFinder is None:
-      self.ElementFinder = spatial_btree.buildElementFinder(self.Elements)
-    return self.ElementFinder(element)
+    # double-curvy bend: instance-modifying code.
+    self.findElement = spatial_btree.buildElementFinder(self.Elements)
+    return self.findElement(element)
 
 
 
@@ -135,7 +142,7 @@ class tRectangularMesh(tMesh):
     dx = x / nx
     dy = y / ny
 
-    # build nodes
+    # build nodes -------------------------------------------------------------
     all_nodes = []
     nodes = []
     for node_y in range(0, ny + 1):
@@ -157,7 +164,7 @@ class tRectangularMesh(tMesh):
           between_nodes[ node2,node1 ] = new_node
         return new_node
 
-    # build elements, pay attention to mathematically positive orientation
+    # build elements, pay attention to mathematically positive orientation ----
     elements = []
     for el_y in range(0, ny):
       for el_x in range(0, nx):
@@ -185,23 +192,24 @@ class tRectangularMesh(tMesh):
     self.Nodes = all_nodes
     self.Elements = elements
 
+    # find boundary nodes -----------------------------------------------------
+    # FIXME: Hello, inefficiency!
+    def isEdgeNode(node):
+      x = node.coordinates()
+      for node_c in node.coordinates():
+        if node_c == 0:
+          return True
+      for node_c, bound_c in node.coordinates(), self.Extent:
+        if node_c == bound_c:
+          return True
+      
+    self.BoundaryNodes = filter(isEdgeNode, new_mesh.nodes())
 
 
 
-class tShapedMesh(tMesh):
-  def __init__(self, shape_points, order = 1, refinement_func = None):
-    tMesh.__init__(self)
-    self.ShapePoints = shape_points
-    self.Order = order
-    self.RefinementFunction = refinement_func
 
-  def generate(self):
-    if self.Nodes:
-      return
-
-    self.DOFManager = matrix_builder.tDOFManager()
-    out_p = pyangle.triangulateArea(self.ShapePoints, refinement_func = self.RefinementFunction)
-
+class tPyangleGeneratedMesh(tMesh):
+  def _postprocessTriangleOutput(self, out_p):
     pts = out_p.Points
     tris = out_p.Triangles
 
@@ -238,24 +246,67 @@ class tShapedMesh(tMesh):
     self.Nodes = nodes
     self.Elements = elements
 
+    # find boundary nodes -----------------------------------------------------
+    self.BoundaryNodes = []
+    for i in range(out_p.PointMarkers.size()):
+      if out_p.PointMarkers.get(i):
+        self.BoundaryNodes.append(nodes[i])
+
+    self.LastOutputParameters = out_p
+
+  def getRefinement(self, element_needs_refining):
+    in_p = self.LastOutputParameters.copy()
+    
+    for i, el in zip(range(len(self.Elements)), self.Elements):
+      if element_needs_refining(el):
+        in_p.TriangleAreas.set(i, el.area() * 0.3333)
+
+    print "FIXME: have a look a the area constraint array"
+    raw_input()
+
+    return tMeshChange(self, _tTwoDimensionalShapedRefinedMesh(self.Order, in_p))
+
+
+
+
+class tTwoDimensionalShapedMesh(tPyangleGeneratedMesh):
+  def __init__(self, shape_points, order = 1, refinement_func = None):
+    tMesh.__init__(self)
+    self.ShapePoints = shape_points
+    self.Order = order
+    self.RefinementFunction = refinement_func
+
+  def generate(self):
+    if self.Nodes:
+      raise RuntimeError, "generate() may not be called twice"
+
+    out_p = pyangle.triangulateArea(self.ShapePoints, 
+      refinement_func = self.RefinementFunction)
+
     # The refinement function may carry expensive references to other
     # meshes. We should not depend on its presence any longer 
     # than necessary.
     del self.RefinementFunction
+    
+    self._postprocessTriangleOutput(out_p)
 
-  def getRefinement(self, element_needs_refining):
-    def needsRefinement(vert_origin, vert_destination, vert_apex, area):
-      barycenter = num.array([vert_origin.x() + vert_destination.x() + vert_apex.x(),
-        vert_origin.y() + vert_destination.y() + vert_apex.y()]) / 3.
-      el = self.findElement(barycenter)
-      if el is None:
-        return False
-      if element_needs_refining(el):
-        return area > el.area() * 0.2
-      else:
-        return area > el.area()
 
-    return tMeshChange(self, tShapedMesh(self.ShapePoints, self.Order, needsRefinement))
+
+
+class _tTwoDimensionalShapedRefinedMesh(tPyangleGeneratedMesh):
+  def __init__(self, order, in_p):
+    tMesh.__init__(self)
+    self.Order = order
+    self.InputParameters = in_p
+
+  def generate(self):
+    if self.Nodes:
+      raise RuntimeError, "generate() may not be called twice"
+
+    out_p = pyangle.refine(self.InputParameters)
+    del self.InputParameters
+
+    self._postprocessTriangleOutput(out_p)
 
 
 

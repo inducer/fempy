@@ -33,27 +33,23 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
   job = tJob("bcs")
   b_mat = b_builder.matrix()
   
-  nonzero_diri_nodes = []
   for node in dirichlet_nodes:
     boundary_value = u_d(node.coordinates())
     i = dof_manager.getDegreeOfFreedomNumber(node)
     if boundary_value != 0:
       b_mat += s_builder.column(i) * boundary_value
-      nonzero_diri_nodes.append((i,boundary_value))
     s_builder.forceIdentityMap(i)
     b_mat[ i ] = -boundary_value
 
   negated_b = b_builder.matrix() * -1
   job.done()
 
-  job = tJob("compile matrix")
   s = s_builder.matrix()
   #visualization.writeGnuplotSparsityPattern(",,s.gnuplot", s)
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)
   s_inv_op = algo.makeCGMatrixOperator(s_op, dof_count)
-  job.done()
 
   if start_vector is None:
     x = num.zeros((dof_count,), num.Float)

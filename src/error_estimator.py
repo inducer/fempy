@@ -17,19 +17,19 @@ class tErrorEstimator:
       self.ElementToErrorMap[element] = result
       return result
 
-  def estimateTotalError():
+  def estimateTotalError(self):
     return self.estimateErrorSum(self.Mesh.elements())
 
-  def estimateErrorSum(elements):
-    return sum([self.estimateError(el) for el in elements])
+  def estimateErrorSum(self, elements):
+    return sum([self(el) for el in elements])
 
-  def _getEstimate(element):
+  def _getEstimate(self, element):
     raise RuntimeError, "not implemented"
 
 
 
 
-class tAnalyticSolutionErrorEstimator(tErrorEstimator):
+class tAnalyticSolutionL2ErrorEstimator(tErrorEstimator):
   def __init__(self, mesh, computed_solution, analytic_solution):
     tErrorEstimator.__init__(self, mesh, computed_solution)
     self.AnalyticSolution = analytic_solution
