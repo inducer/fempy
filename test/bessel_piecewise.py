@@ -59,7 +59,7 @@ do_visualization = raw_input("visualize? [n]") == "y"
 eigenvalue_eoc = eoc.tEOCRecorder()
 eigenfunc_eoc = eoc.tEOCRecorder()
 max_tri_area = 8e-2
-for step in range(7):
+for step in range(10):
     max_tri_area *= 0.8
 
     mesh = fempy.mesh.tTwoDimensionalMesh(
@@ -113,15 +113,15 @@ for step in range(7):
             visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), ana)
             raw_input("[showing analytic, enter]")
 
-        fempy_emode /= fempy_emode(origin) * Rvector(origin)
+        fempy_emode *=  Rvector(origin) / fempy_emode(origin)
 
         my_estimator = element_norm.makeL2ErrorNormSquared(Rvector, fempy_emode)
         total_error = tools.sumOver(my_estimator, mesh.elements())
 
-        eigenfunc_eoc.addDataPoint(math.sqrt(len(mesh.dofManager())),
+        eigenfunc_eoc.addDataPoint(math.sqrt(len(mesh.elements())),
                                     math.sqrt(abs(total_error)))
 
-    eigenvalue_eoc.addDataPoint(math.sqrt(len(mesh.dofManager())),
+    eigenvalue_eoc.addDataPoint(math.sqrt(len(mesh.elements())),
                                 math.sqrt(evalue_error))
 
 print "-------------------------------------------------------"
