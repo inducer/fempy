@@ -238,3 +238,14 @@ def writeGnuplotMesh(mesh, filename):
             writeNode(node_number)
         writeNode(node_numbers[0])
         gnuplot_file.write("\n\n")
+
+
+def visualize1DMeshFunction(mf, filename):
+    gnuplot_file = file(filename, "w")
+    nodes = [node for node in mf.mesh().dofManager()]
+    nodes.sort(lambda n1, n2: cmp(n1.Coordinates[0], n2.Coordinates[0]))
+    for n in nodes:
+        print >> gnuplot_file, "%f\t%f" % (n.Coordinates[0], mf[n])
+
+
+    

@@ -1,5 +1,6 @@
 import pylinear.matrices as num
 import pylinear.linear_algebra as la
+import pylinear.matrix_tools as mtools
 import element
 import expression
 import pyangle
@@ -131,10 +132,8 @@ class tMesh:
     self.Elements = []
 
   def dimensions(self):
-    """Return the number of dimensions of this mesh. Most often, this will be
-    either two or three.
-    """
-    raise RuntimeError, "Not implemented"
+    """Return the number of dimensions of this mesh."""
+    raise NotImplementedError
 
   def dofManager(self):
     return self.DOFManager
@@ -155,6 +154,33 @@ class tMesh:
     # double-curvy bend: instance-modifying code.
     self.findElement = spatial_btree.buildElementFinder(self.Elements)
     return self.findElement(point)
+
+
+
+
+# One-dimensional mesh --------------------------------------------------
+class tOneDimensionalMesh(tMesh):
+  def __init__(self, a, b, n, left_tracking_id, right_tracking_id):
+    tMesh.__init__(self)
+    a_vec = num.array([a], num.Float)
+    b_vec = num.array([b], num.Float)
+    points = mtools.linspace(a_vec, b_vec, n)
+
+    self.DOFManager.registerNode(0, points[0], left_tracking_id)
+    for i, p in list(enumerate(points))[1:-1]:
+      self.DOFManager.registerNode(i, p)
+    self.DOFManager.registerNode(-1, points[-1], right_tracking_id)
+
+    assert len(self.DOFManager) == len(points)
+
+    for i in range(len(self.DOFManager) - 1):
+      self.Elements.append(element.tOneDimensionalFiniteElement(
+        [self.DOFManager[i], self.DOFManager[i+1]],
+        self.DOFManager,
+        element.LinearFormFunctionKit1D))
+
+  def dimensions(self):
+    return 1
 
 
 
