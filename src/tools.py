@@ -344,39 +344,6 @@ def conjugate(value):
 
 
 
-def frobeniusNorm(a):
-    result = 0
-    for i,j in a.indices():
-        result += abs(a[i,j])**2
-    return result
-
-def matrixExp(a, eps = 1e-15):
-    h,w = a.shape
-    assert h == w
-    a_frob = frobeniusNorm(a)
-    
-    last_result = num.identity(h, a.typecode())
-    result = last_result.copy()
-
-    current_power_of_a = a
-
-    factorial = 1
-    n = 1
-
-    while True:
-        result += current_power_of_a * (1./factorial)
-
-        if frobeniusNorm(result - last_result)/a_frob < eps:
-            return result
-
-        n += 1
-        last_result = result.copy()
-        factorial *= n
-        current_power_of_a = num.matrixmultiply(current_power_of_a, a)
-    
-        
-    
-
 class tSparseVector(tDictionaryWithDefault):
     def __init__(self):
         tDictionaryWithDefault.__init__(self, lambda x: 0.)

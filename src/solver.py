@@ -186,8 +186,8 @@ def shiftAndInvertSymmetricEigenproblem(sigma, s_op, m_op,
         m_op)
     shifted_matrix_op = algo.addMatrixOperators(s_op, neg_sigma_m_op)
     shifted_matrix_inv_op = algo.makeCGMatrixOperator(shifted_matrix_op,
-                                                      shifted_matrix_op.shape[0],
-                                                      1e-15)
+                                                      shifted_matrix_op.shape[0], 
+                                                      tolerance)
 
     op = algo.composeMatrixOperators(shifted_matrix_inv_op, m_op)
 
@@ -255,7 +255,7 @@ class tLaplacianEigenproblemSolver:
         self.Mesh = mesh
         
         dof_manager = mesh.dofManager()
-        unconstrained_nodes = [node for node in dof_manager if not node in constrained_nodes]
+        unconstrained_nodes = [node for node in dof_manager if node not in constrained_nodes]
         number_assignment = self.NumberAssignment = \
                             element.assignNodeNumbers(unconstrained_nodes)
         complete_number_assignment = self.CompleteNumberAssignment = \
