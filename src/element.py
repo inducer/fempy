@@ -1,7 +1,7 @@
 import math
 
-import Numeric as num
-import LinearAlgebra as la
+import pylinear.matrices as num
+import pylinear.linear_algebra as la
 
 import integration
 import expression

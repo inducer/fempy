@@ -1,6 +1,6 @@
 import pattern
 import types
-import Numeric as num
+import pylinear.matrices as num
 from pattern import VAR
 
 

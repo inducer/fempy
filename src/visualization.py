@@ -1,4 +1,4 @@
-import Numeric as num
+import pylinear.matrices as num
 
 
 

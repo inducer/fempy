@@ -7,8 +7,8 @@ import math
 import sys
 
 # Numerics imports ------------------------------------------------------------
-import Numeric as num
-import LinearAlgebra as la
+import pylinear.matrices as num
+import pylinear.linear_algebra as la
 
 # FEM imports -----------------------------------------------------------------
 sys.path.append("pyangle")

@@ -1,4 +1,4 @@
-import Numeric as num
+import pylinear.matrices as num
 import math
 
 # Formulae from Schwarz, p. 121f.
@@ -12,7 +12,7 @@ def doIntegration(locations, weights, f):
   for i in range(0,h):
     f_values[ i ] = f(locations[ i ])
 
-  return num.dot(weights, f_values)
+  return num.innerproduct(weights, f_values)
 
 
 

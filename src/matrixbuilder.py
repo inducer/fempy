@@ -1,6 +1,4 @@
-import Numeric as num
-import LinearAlgebra as la
-import spmatrix as sparse
+import pylinear.matrices as num
 
 
 

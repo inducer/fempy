@@ -1,4 +1,4 @@
-import Numeric as num
+import pylinear.matrices as num
 import math
 
 
@@ -27,7 +27,7 @@ def writeSymmetricMatrixAsCSV(filename, matrix):
 
 
 def norm2(vector):
-  return math.sqrt(num.dot(vector, vector))
+  return math.sqrt(num.innerproduct(vector, vector))
 
 
 

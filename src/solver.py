@@ -1,4 +1,3 @@
-import itsolvers
 from matrixbuilder import *
 from stopwatch import *
 from tools import *
