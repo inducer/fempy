@@ -156,6 +156,12 @@ class tFiniteGrid(tGrid):
         for idx in range(len(seq)):
             multidim_idx = seq.translateSingleIndex(idx)
             yield multidim_idx 
+
+    def innerIndices(self):
+        seq = tLexicographicSequencer(self, [(low+1, high-1) for low, high in self._Limits])
+        for idx in range(len(seq)):
+            multidim_idx = seq.translateSingleIndex(idx)
+            yield multidim_idx 
   
 
 
