@@ -356,7 +356,9 @@ class tOneDimensionalFiniteElement(tFiniteElement):
                 cf = self.FormFunctions[column]
                 integral = self.Length * \
                            integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
-                                                          lambda p: rf(p)*cf(p))
+                                                          lambda p: 
+                                                          f(self.transformToReal(p))
+                                                          *rf(p)*cf(p))
                 influence_matrix[row,column] = influence_matrix[column,row] = \
                                                integral
         return influence_matrix

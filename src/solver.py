@@ -196,9 +196,10 @@ def shiftAndInvertSymmetricEigenproblem(sigma, s_op, m_op,
                                                     s_op.typecode()),
         m_op)
     shifted_matrix_op = algo.addMatrixOperators(s_op, neg_sigma_m_op)
-    shifted_matrix_inv_op = algo.makeCGMatrixOperator(shifted_matrix_op,
-                                                      shifted_matrix_op.shape[0], 
-                                                      tolerance)
+    shifted_matrix_inv_op = algo.makeBiCGSTABMatrixOperator(shifted_matrix_op,
+                                                            shifted_matrix_op.shape[0]*10, 
+                                                            tolerance)
+    #shifted_matrix_inv_op.debug_level = 2
 
     op = algo.composeMatrixOperators(shifted_matrix_inv_op, m_op)
 
@@ -336,17 +337,17 @@ class tLaplacianEigenproblemSolver:
         a_op = algo.makeMatrixOperator(a_ex)
         a_herm_op = algo.makeMatrixOperator(a_herm_ex)
 
-        mm = num.matrixmultiply
-        print "A"
-        mtools.printComplexMatrixInGrid(a)
-        print "S"
-        mtools.printComplexMatrixInGrid(self.FullS)
-        print "M"
-        mtools.printComplexMatrixInGrid(self.FullM)
-        print "ASA_H"
-        mtools.printComplexMatrixInGrid(mm(a, mm(self.FullS, num.hermite(a))))
-        print "AMA_H"
-        mtools.printComplexMatrixInGrid(mm(a, mm(self.FullM, num.hermite(a))))
+        #mm = num.matrixmultiply
+        #print "A"
+        #mtools.printComplexMatrixInGrid(a)
+        #print "S"
+        #mtools.printComplexMatrixInGrid(self.FullS)
+        #print "M"
+        #mtools.printComplexMatrixInGrid(self.FullM)
+        #print "ASA_H"
+        #mtools.printComplexMatrixInGrid(mm(a, mm(self.FullS, num.hermite(a))))
+        #print "AMA_H"
+        #mtools.printComplexMatrixInGrid(mm(a, mm(self.FullM, num.hermite(a))))
 
         s_ex = num.asarray(self.FullS, self.FullS.typecode(), num.SparseExecuteMatrix)
         s_op = algo.makeMatrixOperator(s_ex)

@@ -7,11 +7,6 @@ import fempy.geometry
 import fempy.expression as expression
 import fempy.expression_operators as eo
 
-import psyco
-
-#psyco.full()
-#psyco.profile()
-
 outer_radius = 5
 inner_radius = 0.1
 outer_value = 0
@@ -29,4 +24,4 @@ sol = (eo.PLUS, (eo.TIMES, c1, (eo.LOG, expr_r)), c2)
 mesh = fempy.mesh.tTwoDimensionalMesh(
   fempy.geometry.getAnnulusGeometry(5, 0.1, use_exact = True), 
   hole_starts = [(0,0)])
-test_tools.adaptiveDemo(sol, mesh, max_iterations = 3)
+test_tools.adaptiveDemo(sol, mesh, max_iterations = 9)
