@@ -24,4 +24,6 @@ error estimator implementations:
   - L2, a posteriori estimate
   - Energy, a posteriori estimate
   
+Rand fuer EWP
+
 elemente muessen ihre nachbarn kennen

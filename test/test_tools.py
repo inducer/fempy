@@ -30,7 +30,9 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
   solution = None
   while True:
     print "--------------------------------------------------------------------"
-    print "ITERATION %d: %d elements, %d nodes" % (iteration_count, len(mesh.elements()), len(mesh.nodes()))
+    print "ITERATION %d: %d elements, %d nodes" % (iteration_count, 
+                                                   len(mesh.elements()), 
+                                                   len(mesh.dofManager()))
     print "--------------------------------------------------------------------"
     element_needs_refining, solution = solve(mesh, solution)
 
@@ -61,7 +63,7 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
 def visualize(mesh, vector):
   #visualization.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), vector)
   #visualization.writeGnuplotFile(",,result.dat", mesh.dofManager(), mesh.elements(), vector)
-  visualization.writeVtkFile(",,result.vtk", mesh.dofManager(), mesh.elements(), vector)
+  visualization.writeVtkFile(",,result.vtk", ",,result_grid.vtk", mesh.dofManager(), mesh.elements(), vector)
 
 
 
@@ -85,9 +87,9 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   def solve(new_mesh, start_solution_vector = None):
     if start_solution_vector is None:
-      start_solution_vector = num.zeros((new_mesh.dofManager().countDegreesOfFreedom(),), num.Float)
+      start_solution_vector = num.zeros((len(new_mesh.dofManager()),), num.Float)
 
-    solution_vector = solver.solvePoisson(new_mesh, new_mesh.boundaryNodes(),
+    solution_vector = solver.solvePoisson(new_mesh, 
       rhs_c, sol_c, start_solution_vector)
 
     job = stopwatch.tJob("error")

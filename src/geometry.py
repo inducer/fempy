@@ -49,10 +49,11 @@ def getCircle(radius, use_exact = True):
                 use_exact_elements = use_exact),
     ]
 
-def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3, use_exact = True):
-  return [mesh.tShapeSection(getParallelogram(edge_length), True),
-          mesh.tShapeSection(getCircle(edge_length * inner_factor, use_exact), False)]
+def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3, 
+                        use_exact = True, constraint_id = "dirichlet"):
+  return [mesh.tShapeSection(getParallelogram(edge_length), constraint_id),
+          mesh.tShapeSection(getCircle(edge_length * inner_factor, use_exact), None)]
 
 def getAnnulusGeometry(outer_radius, inner_radius, use_exact = True):
-  return [mesh.tShapeSection(getCircle(outer_radius, use_exact), True),
-          mesh.tShapeSection(getCircle(inner_radius, use_exact), True)]
+  return [mesh.tShapeSection(getCircle(outer_radius, use_exact), "dirichlet"),
+          mesh.tShapeSection(getCircle(inner_radius, use_exact), "dirichlet")]

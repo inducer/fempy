@@ -14,7 +14,7 @@ class tVisualizationData:
   NodeValues specifies the values of the solution function at the
   nodes given by NodeNumbers, in the same order.
 
-  Triangles is a list of 3-tuples of node numbers. To refer to the
+  Triangles is a list of lists of node numbers. To refer to the
   above NodeNumbers array, use regular-zero based indexing into that
   array. But an element may introduce extra nodes into its 
   visualization that are not necessarily mentioned in the DOF manager.
@@ -26,15 +26,21 @@ class tVisualizationData:
 
   ExtraNodeValues gives the values of the solution function at the
   extra nodes.
+
+  ExtraPolygons specifies a list of polygons in the same format as
+  `Triangles' that allows to specify a 'coarser view' of the given mesh.
+  This may be used to show element boundaries. Not all backends show
+  this extra information.
   """
 
   def __init__(self, nodes, node_values, triangles,
-      extra_node_coordinates = [], extra_node_values = []):
+      extra_node_coordinates = [], extra_node_values = [], extra_polygons = []):
     self.Nodes = nodes
     self.NodeValues = node_values
     self.Triangles = triangles
     self.ExtraNodeCoordinates = extra_node_coordinates
     self.ExtraNodeValues = extra_node_values
+    self.ExtraPolygons = extra_polygons
 
 
 
@@ -44,19 +50,21 @@ def compileInfo(dof_manager, elements, node_data):
   nodes = []
   values = []
   tris = []
+  extra_polys = []
+
   for el in elements:
     data = el.visualizationData(node_data)
     local_nodes = {}
 
     index = 0
     for node in data.Nodes:
-      node_number = dof_manager.getDegreeOfFreedomNumber(node)
+      node_number = node.Number
       if node_number in node_number_map:
 	local_nodes[ index ] = node_number_map[ node_number ]
       else:
 	local_nodes[ index ] = len(nodes)
 	node_number_map[ node ] = len(nodes)
-	nodes.append(node.coordinates())
+	nodes.append(node.Coordinates)
 	values.append(data.NodeValues[ index ])
       index += 1
 
@@ -70,11 +78,14 @@ def compileInfo(dof_manager, elements, node_data):
     for na,nb,nc in data.Triangles:
       tris.append((local_nodes[na], local_nodes[nb], local_nodes[nc]))
 
-  return nodes, values, tris
+    for polygon in data.ExtraPolygons:
+      extra_polys.append([local_nodes[node] for node in polygon])
+
+  return nodes, values, tris, extra_polys
 
 
 
-def writeGnuplotFile(name, dof_manager, elements, node_data):
+def writeGnuplotFile(name, name_grid, dof_manager, elements, node_data):
   gnuplot_file = file(name, "w")
 
   def writeNode(node):
@@ -83,7 +94,7 @@ def writeGnuplotFile(name, dof_manager, elements, node_data):
 	nodes[node][1],
 	values[node]))
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
   for tri_nodes in triangles:
     for node in tri_nodes:
       writeNode(node)
@@ -93,23 +104,26 @@ def writeGnuplotFile(name, dof_manager, elements, node_data):
 
 
 
-def writeVtkFile(name, dof_manager, elements, node_data):
+def writeVtkFile(name, name_grid, dof_manager, elements, node_data):
   import pyvtk
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
+  nodes,values,triangles,extra_polys = compileInfo(dof_manager, elements, node_data)
 
   my_nodes = []
   for node in nodes:
     my_nodes.append([ node[0], node[1], 0 ])
 
   structure = pyvtk.PolyData(points = my_nodes, polygons = triangles)
+  structure_grid = pyvtk.PolyData(points = my_nodes, polygons = extra_polys)
 
   pointdata = pyvtk. PointData(
       pyvtk. Scalars(values, name="node_data", lookup_table = "default"))
 
-  vtk = pyvtk.VtkData(structure, "FEM result", pointdata)
+  vtk = pyvtk.VtkData(structure, "FEM result triangles", pointdata)
   vtk.tofile(name, "ascii")
 
+  vtk = pyvtk.VtkData(structure_grid, "FEM result grid", pointdata)
+  vtk.tofile(name_grid, "ascii")
 
 
 

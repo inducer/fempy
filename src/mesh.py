@@ -23,7 +23,7 @@ def _makeDistortedLinearElement(nodes, dof_manager):
   def inv_func(point):
     return num.matrixmultiply(matinv, point - nc0)
     
-  return element.tDistortedTwoDimensionalLinearTriangularFiniteElement(
+  return element.tDistortedTwoDimensionalTriangularFiniteElement(
       nodes, [ 
         ("+", nc0[0], expression.linearCombination(mat[0], variables)), 
         ("+", nc0[1], expression.linearCombination(mat[1], variables)), 
@@ -76,12 +76,8 @@ class tMesh:
     """Sets up parameters and basic data for the mesh, but should *not*
     generate it."""
     self.ElementFinder = None
-    self.DOFManager = matrix_builder.tDOFManager()
-
-    self.Nodes = []
+    self.DOFManager = element.tDOFManager()
     self.Elements = []
-    self.HangingNodes = []
-    self.BoundaryNodes = []
 
   def dimensions(self):
     """Return the number of dimensions of this mesh. Most often, this will be
@@ -98,24 +94,8 @@ class tMesh:
     """
     pass
 
-  def nodes(self):
-    return self.Nodes
-
   def elements(self):
     return self.Elements
-
-  def hangingNodes(self):
-    """Returns a list of three-tuples that each look like
-    (node1, hanging_node, node2), where hanging_node's value should 
-    be fixed halfway between node1 and node2.
-    """
-    return self.HangingNodes
-
-  def boundaryNodes(self):
-    """Returns a list of nodes that form the outer boundary of the given
-    geometry.
-    """
-    return self.BoundaryNodes
 
   def getRefinement(self, element_needs_refining):
     """Returns a tMeshChange that represents a refined mesh
@@ -130,91 +110,6 @@ class tMesh:
     # double-curvy bend: instance-modifying code.
     self.findElement = spatial_btree.buildElementFinder(self.Elements)
     return self.findElement(element)
-
-
-
-
-# rectangular mesh ------------------------------------------------------------
-class tRectangularMesh(tMesh):
-  def __init__(self, nx, ny, x = 1., y = 1., order = 1):
-    tMesh.__init__(self)
-    self.Steps = [nx, ny]
-    self.Extent = [x,y]
-    self.Order = 1
-
-  def dimensions(self):
-    return 2
-
-  def generate(self):
-    nx = self.Steps[0]
-    ny = self.Steps[1]
-    x = self.Extent[0]
-    y = self.Extent[1]
-    dx = x / nx
-    dy = y / ny
-
-    # build nodes -------------------------------------------------------------
-    all_nodes = []
-    nodes = []
-    for node_y in range(0, ny + 1):
-      line_nodes = []
-      for node_x in range(0, nx + 1):
-        line_nodes.append(element.tNode(num.array([ node_x * dx, node_y * dy ])))
-      nodes.append(line_nodes)
-      all_nodes += line_nodes
-
-    between_nodes = {}
-
-    def between(node1, node2):
-      if (node1,node2) in between_nodes:
-        return between_nodes[ node1,node2 ]
-      else:
-        new_node = element.tNode((node1.coordinates() + node2.coordinates()) / 2)
-        all_nodes.append(new_node)
-        between_nodes[ node1,node2 ] = \
-          between_nodes[ node2,node1 ] = new_node
-        return new_node
-
-    # build elements, pay attention to mathematically positive orientation ----
-    elements = []
-    for el_y in range(0, ny):
-      for el_x in range(0, nx):
-        # d c
-        # a b
-        a = nodes[el_y][el_x]
-        b = nodes[el_y][el_x + 1]
-        c = nodes[el_y + 1][el_x + 1]
-        d = nodes[el_y + 1][el_x]
-
-        if self.Order == 2:
-          lower_el = element.tTwoDimensionalQuadraticTriangularFiniteElement(
-            [ a,b,d, between(a, b), between(b, d), between(d, a) ], 
-            self.DOFManager)
-          upper_el = element.tTwoDimensionalQuadraticTriangularFiniteElement(
-            [ c,d,b, between(c, d), between(d, b), between(b, c) ], 
-            self.DOFManager)
-        else:
-          lower_el = element.tTwoDimensionalLinearTriangularFiniteElement([ a,b,d ], self.DOFManager)
-          upper_el = element.tTwoDimensionalLinearTriangularFiniteElement([ c,d,b ], self.DOFManager)
-
-        elements.append(lower_el)
-        elements.append(upper_el)
-        
-    self.Nodes = all_nodes
-    self.Elements = elements
-
-    # find boundary nodes -----------------------------------------------------
-    # FIXME: Hello, inefficiency!
-    def isEdgeNode(node):
-      x = node.coordinates()
-      for node_c in node.coordinates():
-        if node_c == 0:
-          return True
-      for node_c, bound_c in node.coordinates(), self.Extent:
-        if node_c == bound_c:
-          return True
-      
-    self.BoundaryNodes = filter(isEdgeNode, new_mesh.nodes())
 
 
 
@@ -234,9 +129,9 @@ class tShapeGuide:
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
 
 class tShapeSection:
-  def __init__(self, shape_guide_list, is_boundary):
+  def __init__(self, shape_guide_list, constraint_id):
     self.ShapeGuideList = shape_guide_list
-    self.IsBoundary = is_boundary
+    self.ConstraintId = constraint_id
 
 
 
@@ -284,38 +179,35 @@ class _tPyangleMesh(tMesh):
 
 
     # read and reposition nodes -----------------------------------------------
-    nodes = []
-    boundary_nodes = []
-
-    boundary_file = file(",,boundary.data", "w")
-    
     for no in range(pts.size()):
       marker = out_p.PointMarkers.get(no)
       guide = self.findShapeGuideNumber(marker)
       section = self.findShapeSectionByNumber(marker)
 
+      constraint_id = None
+      if guide:
+        constraint_id = section.ConstraintId
+
       if isinstance(guide, tShapeGuide):
         c = guide.DeformationCoordinate
         pts.setSub(no, c, guide.evaluate(pts.getSub(no, 1-c)))
 
-      node = element.tNode(num.array([pts.getSub(no, 0), pts.getSub(no, 1)]))
-
-      nodes.append(node)
-
-      if section and section.IsBoundary:
-        boundary_nodes.append(node)
-        boundary_file.write("%f\t%f\n" % (node.coordinates()[0], node.coordinates()[1]))
+      self.DOFManager.registerNode(no,
+                                   num.array([pts.getSub(no, 0), pts.getSub(no, 1)]),
+                                   constraint_id)
 
     pyangle.writeGnuplotMesh(",,mesh.data", out_p)
 
     # build elements ----------------------------------------------------------
     elements = []
     for tri in range(tris.size()):
-      node_numbers = [tris.getSub(tri, 0), tris.getSub(tri, 1),
-        tris.getSub(tri, 2)]
+      my_nodes = [self.DOFManager.getNodeByTag(nd) 
+                  for nd in [tris.getSub(tri, 0), 
+                             tris.getSub(tri, 1),
+                             tris.getSub(tri, 2)]]
 
       def guideContainsNode(guide, node):
-        coords = node.coordinates()
+        coords = node.Coordinates
         a,b = guide.Interval
         scale = math.fabs(b-a)
         c = guide.DeformationCoordinate
@@ -326,13 +218,13 @@ class _tPyangleMesh(tMesh):
 
       possible_guides = []
       guided_nodes = []
-      for no in node_numbers:
-        guide = self.findShapeGuideNumber(out_p.PointMarkers.get(no))
+      for node in my_nodes:
+        guide = self.findShapeGuideNumber(out_p.PointMarkers.get(node.Tag))
         if isinstance(guide, tShapeGuide) and guide not in possible_guides:
           my_guided_nodes = []
-          for index, no_ in zip(range(3),node_numbers):
-            if guideContainsNode(guide, nodes[no_]):
-              my_guided_nodes.append(nodes[no_])
+          for index, no_ in zip(range(3), my_nodes):
+            if guideContainsNode(guide, no_):
+              my_guided_nodes.append(no_)
             else:
               my_index_unguided = index
 
@@ -349,16 +241,14 @@ class _tPyangleMesh(tMesh):
 
       if len(possible_guides) == 0 or not possible_guides[0].UseExactElements:
         # none of the edges are guided
-        my_nodes = [nodes[no] for no in node_numbers]
         elements.append(
-            element.tTwoDimensionalLinearTriangularFiniteElement(
-              my_nodes, self.DOFManager))
+          element.tTwoDimensionalTriangularFiniteElement(
+          my_nodes, self.DOFManager, element.QuadraticFormFunctionKit))
       elif len(possible_guides) >= 1:
         # one edge is guided
 
         # rotate list such that unguided node comes first
-        node_numbers = [node_numbers[(index_unguided+i)%3] for i in range(3)]
-        my_nodes = [nodes[no] for no in node_numbers]
+        my_nodes = [my_nodes[(index_unguided+i)%3] for i in range(3)]
 
         guide = possible_guides[0]
 
@@ -381,7 +271,7 @@ class _tPyangleMesh(tMesh):
                      ("+", 1e-50, ("-", ("**", expr_s, 2), 1)))
 
         # calculate the forward linear transform 
-        node_coords = [nodes[no].coordinates() for no in node_numbers]
+        node_coords = [node.Coordinates for node in my_nodes]
         nc0 = node_coords[0]
         mat = num.transpose(num.array([ n - nc0 for n in node_coords[1:] ]))
         matinv = la.inverse(mat)
@@ -461,15 +351,13 @@ class _tPyangleMesh(tMesh):
                                               num.matrixmultiply(matinv, point - nc0))
 
         elements.append(
-          element.tDistortedTwoDimensionalLinearTriangularFiniteElement(
-          my_nodes, 
+          element.tDistortedTwoDimensionalTriangularFiniteElement(
+          my_nodes, self.DOFManager, element.QuadraticFormFunctionKit,
           func_transform, 
           func_transform_jacobian,
-          inv_func, self.DOFManager))
+          inv_func))
 
-    self.Nodes = nodes
     self.Elements = elements
-    self.BoundaryNodes = boundary_nodes
     self.LastOutputParameters = out_p
 
   def getRefinement(self, element_needs_refining):
@@ -555,7 +443,7 @@ class tTwoDimensionalMesh(_tPyangleMesh):
     self.RefinementFunction = refinement_func
 
   def generate(self):
-    if self.Nodes:
+    if self.Elements:
       raise RuntimeError, "generate() may not be called twice"
 
     self._postprocessTriangleOutput(
@@ -574,7 +462,7 @@ class _tTwoDimensionalRefinedMesh(_tPyangleMesh):
     _tPyangleMesh.__init__(self, input_p, order, shape_sections)
 
   def generate(self):
-    if self.Nodes:
+    if self.Elements:
       raise RuntimeError, "generate() may not be called twice"
 
     self._postprocessTriangleOutput(pyangle.refine(self.InputParameters))

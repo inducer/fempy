@@ -3,35 +3,6 @@ import pylinear.matrices as num
 
 
 
-class tDOFManager:
-  def __init__(self):
-    self.IdentifierToNumber = { }
-    self.NumberToIdentifier = [ ]
-
-  def registerDegreeOfFreedomNumber(self, identifier):
-    if identifier in self.IdentifierToNumber:
-      return self.IdentifierToNumber[ identifier ]
-    else:
-      new_dof_id = len(self.NumberToIdentifier)
-      self.IdentifierToNumber[ identifier ] = new_dof_id
-      self.NumberToIdentifier.append(identifier)
-      return new_dof_id
-
-  def getDegreeOfFreedomNumber(self, identifier):
-    try:
-      return self.IdentifierToNumber[ identifier ]
-    except KeyError:
-      raise RuntimeError, "Attempted to get a non-registered degree of freedom"
-
-  def getDegreeOfFreedomIdentifier(self, number):
-    return self.NumberToIdentifier[ number ]
-
-  def countDegreesOfFreedom(self):
-    return len(self.NumberToIdentifier)
-
-
-
-
 class tVectorBuilder:
   def matrix(self):
     """The result of this function is, in general, of unspecified type.

@@ -32,14 +32,15 @@ def unitCellDemo(mesh, epsilon, sigma, k):
 
   job = fempy.stopwatch.tJob("periodicity")
   thresh = math.pi / 8.
-  bnodes = mesh.boundaryNodes()
+  bnodes = filter(lambda node: node.ConstraintId == "floquet",
+                  mesh.dofManager().constrainedNodes())
 
   pairs = []
   for index, node in zip(range(len(bnodes)), bnodes):
     without_this = bnodes[index+1:]
 
     nodes_with_distances = tools.decorate(
-      lambda other_node: tools.angleBetweenVectors(node.coordinates()-other_node.coordinates(), k),
+      lambda other_node: tools.angleBetweenVectors(node.Coordinates-other_node.Coordinates, k),
       without_this)
     nodes_with_distances.sort(lambda (node1, dist1), (node2, dist2): cmp(dist1, dist2))
     
@@ -75,19 +76,19 @@ def unitCellDemo(mesh, epsilon, sigma, k):
        dist < thresh:
       connect(node_a, node_b)
 
-      k_dist = num.innerproduct(node_a.coordinates()-node_b.coordinates(),k)
+      k_dist = num.innerproduct(node_a.Coordinates-node_b.Coordinates,k)
       periodic_nodes.append((node_a, node_b, cmath.exp(1j * k_dist)))
     pairs_index += 1
 
   connections_file = file(",,connections.data", "w")
   for a,b,factor in periodic_nodes:
-    connections_file.write("%f\t%f\n" % (a.coordinates()[0], a.coordinates()[1]))
-    connections_file.write("%f\t%f\n" % (b.coordinates()[0], b.coordinates()[1]))
+    connections_file.write("%f\t%f\n" % (a.Coordinates[0], a.Coordinates[1]))
+    connections_file.write("%f\t%f\n" % (b.Coordinates[0], b.Coordinates[1]))
     connections_file.write("\n")
   job.done()
 
   results = fempy.solver.solveLaplaceEigenproblem(sigma, mesh, 
-                                                  [], periodic_nodes, 
+                                                  periodic_nodes, 
                                                   g = epsilon,
                                                   typecode = num.Complex)
 
@@ -112,8 +113,9 @@ def runEigenDemo():
 
   mesh = fempy.mesh.tTwoDimensionalMesh(
     fempy.geometry.getUnitCellGeometry(edge_length = 1, 
-                                 inner_factor = 0.3,
-                                 use_exact = False),
+                                       inner_factor = 0.3,
+                                       use_exact = False,
+                                       constraint_id = "floquet"),
     refinement_func = needsRefinement)
 
   def epsilon(x):

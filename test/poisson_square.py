@@ -16,5 +16,5 @@ elif case == "constant_rhs":
   sol = ("+", ("**", ("variable","0"), 2), ("**", ("variable", "1"), 2)) 
 
 mesh = fempy.mesh.tTwoDimensionalMesh(
-  [fempy.mesh.tShapeSection(fempy.geometry.getParallelogram(edge_length = 2), True)])
-test_tools.adaptiveDemo(sol, mesh, max_iterations = 6)
+  [fempy.mesh.tShapeSection(fempy.geometry.getParallelogram(edge_length = 2), "dirichlet")])
+test_tools.adaptiveDemo(sol, mesh, max_iterations = 4)

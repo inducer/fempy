@@ -30,7 +30,7 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 
-def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = None):
+def solvePoisson(mesh, f, u_d = lambda x: 0, start_vector = None):
   """Solve the Poisson equation
 
   laplace u = f
@@ -38,7 +38,7 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
   """
 
   dof_manager = mesh.dofManager()
-  dof_count = dof_manager.countDegreesOfFreedom()
+  dof_count = len(dof_manager)
 
   s_builder = tSymmetricSparseMatrixBuilder(dof_count, num.Float)
   b_builder = tDenseVectorBuilder(dof_count, num.Float)
@@ -54,12 +54,13 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
       lambda x,formfunc_value: f(x) * formfunc_value)
   job.done()
 
-  job = tJob("bcs")
+  job = tJob("bcs: dirichlet")
   b_mat = b_builder.matrix()
   
-  for node in dirichlet_nodes:
-    boundary_value = u_d(node.coordinates())
-    i = dof_manager.getDegreeOfFreedomNumber(node)
+  for node in filter(lambda node: node.ConstraintId == "dirichlet",
+                     dof_manager.constrainedNodes()):
+    boundary_value = u_d(node.Coordinates)
+    i = node.Number
     if boundary_value != 0:
       b_mat += s_builder.column(i) * boundary_value
     s_builder.forceIdentityMap(i)
@@ -108,8 +109,7 @@ def shiftAndInvertEigenproblem(sigma, s, m,
 
 
 
-def solveLaplaceEigenproblem(sigma, mesh, 
-                             dirichlet_nodes, periodic_nodes = [], 
+def solveLaplaceEigenproblem(sigma, mesh, periodic_nodes,
                              f = None, g = lambda x: 1.,
                              typecode = num.Float):
   """Solve the Poisson equation
@@ -123,7 +123,7 @@ def solveLaplaceEigenproblem(sigma, mesh,
   """
 
   dof_manager = mesh.dofManager()
-  dof_count = dof_manager.countDegreesOfFreedom()
+  dof_count = len(dof_manager)
 
   s_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
   m_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
@@ -139,13 +139,14 @@ def solveLaplaceEigenproblem(sigma, mesh,
   job.done()
 
   if f is not None:
-    job = tJob("mass matrix")
+    job = tJob("rhs")
     for el in mesh.elements():
       el.addVolumeIntegralOverFormFunctions(s_builder, f)
     job.done()
 
   job = tJob("bcs, dirichlet")
-  for node in dirichlet_nodes:
+  for node in filter(lambda node: node.ConstraintId == "dirichlet",
+                     dof_manager.constrainedNodes()):
     i = dof_manager.getDegreeOfFreedomNumber(node)
     s_builder.forceIdentityMap(i)
     m_builder.matrix()[i] = 0
@@ -154,8 +155,8 @@ def solveLaplaceEigenproblem(sigma, mesh,
 
   job = tJob("bcs, periodic")
   for node_a, node_b, factor in periodic_nodes:
-    nr_a = dof_manager.getDegreeOfFreedomNumber(node_a)
-    nr_b = dof_manager.getDegreeOfFreedomNumber(node_b)
+    nr_a = node_a.Number
+    nr_b = node_b.Number
 
     s_builder.forceIdentityMap(nr_a)
     s_builder.matrix()[nr_a,nr_b] = -factor
