@@ -105,21 +105,16 @@ def getUnitCellGeometry(radius, segments = 50):
 
 
 
-def adaptiveDemo():
-  a = 5
+def adaptiveDemo(expr):
+  # prepare and compile solution functions ------------------------------------
+  rhs = expression.simplify(expression.laplace(expr, ["0", "1"]))
+  rhs_c = expression.compileScalarField(rhs)
 
-  def f(point):
-    x = point[0]
-    y = point[1]
-    return \
-      -4 * a **2 * (x**2 * y**4 + x**4 * y**2) * math.sin(a * x**2 * y**2) + \
-      2 * a * (y**2 + x**2) * math.cos(a * x**2 * y**2)
+  sol_c = expression.compileScalarField(expr)
+  grad_sol = expression.grad(expr, ["0", "1"])
+  grad_sol_c = [expression.compileScalarField(expression.simplify(x)) for x in grad_sol]
 
-  def solution(point):
-    x = point[0]
-    y = point[1]
-    return math.sin(a * x**2 * y** 2)
-
+  # build geometry ------------------------------------------------------------
   job = tJob("geometry")
   
   boundary, inner_boundary = getUnitCellGeometry(radius = 2)
@@ -134,15 +129,25 @@ def adaptiveDemo():
       start_solution_vector = num.zeros((new_mesh.dofManager().countDegreesOfFreedom(),), num.Float)
 
     solution_vector = solvePoisson(new_mesh, new_mesh.boundaryNodes(),
-      f, solution, start_solution_vector)
+      rhs_c, sol_c, start_solution_vector)
 
+    job = tJob("error")
     my_estimator = error_estimator.tAnalyticSolutionL2ErrorEstimator(
-      new_mesh, solution_vector, solution)
+      new_mesh, solution_vector, sol_c)
 
     errors = map(my_estimator, new_mesh.elements())
-    errors.sort()
-    max_error = errors[int(len(errors) * 0.9)]
+    worst_error = max(errors)
+    max_strategy_selection = filter(lambda err: err > 0.5 * worst_error, errors)
+    if len(max_strategy_selection) <= 5:
+      print "...backed out to quantile strategy..."
+      errors.sort()
+      max_error = errors[int(len(errors) * 0.9)]
+    else:
+      max_error = 0.5 * worst_error
+
     eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError())
+    job.done()
+
     return (my_estimator, max_error), solution_vector
 
   def decideOnRefinement((error_estimator, max_error), element):
@@ -159,7 +164,8 @@ def adaptiveDemo():
 
 
 
-adaptiveDemo()
+sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
+adaptiveDemo(sol)
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")

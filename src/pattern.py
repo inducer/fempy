@@ -33,4 +33,5 @@ def switch(ruleset, value):
     variables = match(ruleset[ index ], value)
     if variables is not None:
       return ruleset[ index + 1 ](*variables)
-  raise RuntimeError, "Value did not match a pattern"
+  print value
+  raise RuntimeError, "Value did not match a pattern" 

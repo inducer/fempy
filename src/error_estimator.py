@@ -1,4 +1,5 @@
 import pylinear.matrices as num
+import math
 
 
 
@@ -40,4 +41,42 @@ class tAnalyticSolutionL2ErrorEstimator(tErrorEstimator):
 
     node_values = num.take(self.Solution, element.nodeNumbers())
     return element.getVolumeIntegralOver(errorFunctionL2, node_values)
+
+
+
+
+class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
+  def __init__(self, mesh, computed_solution, analytic_solution, grad_analytic_solution):
+    tErrorEstimator.__init__(self, mesh, computed_solution)
+    self.AnalyticSolution = analytic_solution
+    self.GradAnalyticSolution = grad_analytic_solution
+
+    dims = mesh.dimensions()
+    self.UnitVectors = []
+    for i in range(dims):
+      vec = num.zeros((dims,), num.Float)
+      vec[i] = 1
+      self.UnitVectors.append(vec)
+
+  def _getEstimate(self, element):
+    def approxFirstDerivative(f, point, direction):
+      # centered difference
+      return (f(point + scale * direction) - f(point - scale * direction)) / (2 * scale)
+
+    # This is incredibly slow. But who cares.
+    approx_solution = element.getSolutionFunction(self.Solution)
+    scale = math.sqrt(element.area()) * 0.01
+
+    def errorFunctionH1(point, solution_func_value):
+      approx_solution_diff = [approxFirstDerivative(approx_solution, point, vec) 
+        for vec in self.UnitVectors]
+      return (self.AnalyticSolution(point) - solution_func_value) ** 2 \
+        + sum([(ana_diff(point) - approx_diff)**2 for ana_diff, approx_diff in 
+            zip(self.GradAnalyticSolution, approx_solution_diff)])
+
+    node_values = num.take(self.Solution, element.nodeNumbers())
+    return element.getVolumeIntegralOver(errorFunctionH1, node_values)
+
+
+
 

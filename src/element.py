@@ -112,25 +112,15 @@ class tFiniteElement:
 
 
 # helpers ---------------------------------------------------------------------
-def compileExpression(expr):
-  substitutions = {}
-  for i in range(3):
-    substitutions[ "%d" % i ] = "point[%d]" % i
-
-  return expression.compile(expr, substitutions, [ "point" ])
-
-
-
-
 def addFormFunctions(cls, form_func_expr, dimensions):
   cls.FormFunctionExpressions = form_func_expr
   n = cls.FormFunctionCount = len(cls.FormFunctionExpressions)
 
   cls.FormFunctions = \
-    [ compileExpression(expr) for expr in cls.FormFunctionExpressions ]
+    [ expression.compileScalarField(expr) for expr in cls.FormFunctionExpressions ]
   cls.DifferentiatedFormFunctions = \
     [
-    [ compileExpression(expression.simplify(expression.differentiate(expr, "%i" % dim)))
+    [ expression.compileScalarField(expression.simplify(expression.differentiate(expr, "%i" % dim)))
       for expr in cls.FormFunctionExpressions ]
     for dim in range(dimensions) ]
 
@@ -258,9 +248,9 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
   def getVolumeIntegralOver(self, f, coefficients):
     jacobian_det = self.Area * 2
-
+    zipped = zip(coefficients, self.FormFunctions)
     def functionInIntegral(point):
-      ff_comb = sum([ coeff * ff(point) for coeff,ff in zip(coefficients, self.FormFunctions) ])
+      ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
       return f(self.transformToReal(point) , ff_comb)
 
     return jacobian_det * integration.integrateFunctionOnUnitTriangle(functionInIntegral)
@@ -322,9 +312,9 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
     dimensions = len(distort_expressions)
 
     self.transformToReal = expression.assembleMatrixFunction([
-      compileExpression(exp) for exp in distort_expressions ])
+      expression.compileScalarField(exp) for exp in distort_expressions ])
     self.transformToUnit = expression.assembleMatrixFunction([
-      compileExpression(exp) for exp in inverse_distort_expressions ])
+      expression.compileScalarField(exp) for exp in inverse_distort_expressions ])
 
     # create derivatives
     distortion_derivatives = []
@@ -337,10 +327,10 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
       for ddim in range(dimensions):
         grad.append(
-          compileExpression(
+          expression.compileScalarField(
             expression.simplify(expression.differentiate(f, "%d" % ddim))))
         inverse_grad.append(
-          compileExpression(
+          expression.compileScalarField(
             expression.simplify(expression.differentiate(inverse_f, "%d" % ddim))))
       distortion_derivatives.append(grad)
       inverse_distortion_derivatives.append(inverse_grad)

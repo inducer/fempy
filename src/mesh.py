@@ -82,6 +82,12 @@ class tMesh:
     self.HangingNodes = []
     self.BoundaryNodes = []
 
+  def dimensions(self):
+    """Return the number of dimensions of this mesh. Most often, this will be
+    either two or three.
+    """
+    raise RuntimeError, "Not implemented"
+
   def dofManager(self):
     return self.DOFManager
 
@@ -133,6 +139,9 @@ class tRectangularMesh(tMesh):
     self.Steps = [nx, ny]
     self.Extent = [x,y]
     self.Order = 1
+
+  def dimensions(self):
+    return 2
 
   def generate(self):
     nx = self.Steps[0]
@@ -213,6 +222,9 @@ class _tPyangleGeneratedMesh(tMesh):
     tMesh.__init__(self)
     self.Order = order
     self.InputParameters = input_p
+
+  def dimensions(self):
+    return 2
 
   def _postprocessTriangleOutput(self, out_p):
     pts = out_p.Points

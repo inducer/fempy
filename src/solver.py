@@ -18,7 +18,7 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
   matrix_inv_op = algo.makeCGMatrixOperator(matrix_op, h * 2)
   matrix_inv_op.apply(rhs, x)
   job.done()
-  print "  iter:", matrix_inv_op.last_iteration_count
+  print "  iterations:", matrix_inv_op.last_iteration_count
 
   residual = x.copy()
   matrix_op.apply(x, residual)

@@ -2,6 +2,7 @@ import pattern
 import types
 import pylinear.matrices as num
 from pattern import VAR
+import math
 
 
 
@@ -17,6 +18,9 @@ def evaluate(expression, variable_assignments = {}):
     ("/",VAR,VAR), lambda x,y: ev(x)/ev(y),
     ("**",VAR,VAR), lambda x,y: ev(x)**ev(y),
     ("-",VAR) , lambda x: -ev(x),
+    ("sin",VAR), lambda x: math.sin(x),
+    ("cos",VAR), lambda x: math.cos(x),
+    ("tan",VAR), lambda x: math.tan(x),
     ("variable",VAR), lambda x: variable_assignments[x],
     VAR, lambda x: x 
   ]
@@ -37,6 +41,9 @@ def isConstant(expression, variable_assignments = {}):
     ("/",VAR,VAR), lambda x,y: isc(x) and isc(y),
     ("**",VAR,VAR), lambda x,y: isc(x) and isc(y),
     ("-",VAR) , lambda x: isc(x),
+    ("sin",VAR), lambda x: isc(x),
+    ("cos",VAR), lambda x: isc(x),
+    ("tan",VAR), lambda x: isc(x),
     ("variable",VAR), lambda x: False,
     VAR, lambda x: True
   ]
@@ -64,6 +71,9 @@ def differentiate(expression, variable):
     # This assumes that the exponent is constant.
     ("**",VAR,VAR), lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
     ("-",VAR) , lambda x: ("-",diff(x)),
+    ("sin",VAR) , lambda x: ("*", diff(x), ("cos",x)),
+    ("cos",VAR) , lambda x: ("*", ("-", diff(x)), ("sin",x)),
+    ("tan",VAR) , lambda x: ("*", diff(x), ("+", 1, ("**", ("tan", x), 2))),
     ("variable",VAR), diffVariable,
     VAR, lambda x: 0.
   ]
@@ -142,6 +152,9 @@ def simplify(expression):
     # This assumes that the exponent is constant.
     ("**",VAR,VAR), simplifyPower,
     ("-",VAR) , lambda x: ("-",simp(x)),
+    ("sin",VAR), lambda x: ("sin",simp(x)),
+    ("cos",VAR), lambda x: ("cos",simp(x)),
+    ("tan",VAR), lambda x: ("tan",simp(x)),
     ("variable",VAR), lambda x: ("variable",x),
     VAR, lambda x: x
   ]
@@ -154,6 +167,12 @@ def simplify(expression):
 def infixify(expression, variable_substitutions = {}):
   determined_variables = []
 
+  def substitute(var):
+    try:
+      return variable_substitutions[var]
+    except KeyError:
+      return "V"+str(var)
+
   def pythonify(expr):
     return pattern.switch(ruleset, expr)
 
@@ -164,7 +183,10 @@ def infixify(expression, variable_substitutions = {}):
     ("/",VAR,VAR), lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
     ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
     ("-",VAR) , lambda x: "(-%s)"  % pythonify(x),
-    ("variable",VAR), lambda x:"%s" % str(variable_substitutions[x]),
+    ("sin",VAR) , lambda x: "sin(%s)"  % pythonify(x),
+    ("cos",VAR) , lambda x: "cos(%s)"  % pythonify(x),
+    ("tan",VAR) , lambda x: "tan(%s)"  % pythonify(x),
+    ("variable",VAR), lambda x:"%s" % str(substitute(x)),
     VAR, lambda x: str(x)
   ]
 
@@ -193,6 +215,9 @@ def compile(expression, variable_substitutions = {}, variables = []):
     ("/",VAR,VAR), lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
     ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
     ("-",VAR) , lambda x: "(-%s)"  % pythonify(x),
+    ("sin",VAR) , lambda x: "math.sin(%s)"  % pythonify(x),
+    ("cos",VAR) , lambda x: "math.cos(%s)"  % pythonify(x),
+    ("tan",VAR) , lambda x: "math.tan(%s)"  % pythonify(x),
     ("variable",VAR), addVariable,
     VAR, lambda x: str(x)
   ]
@@ -210,6 +235,19 @@ def compile(expression, variable_substitutions = {}, variables = []):
 
 
 # tools -----------------------------------------------------------------------
+def compileScalarField(expr, dimension = 2):
+  """Compiles a function that has variables named "0", "1", "2" up to
+  dimension into a function that has one sequence as its input.
+  """
+  substitutions = {}
+  for i in range(dimension):
+    substitutions[ "%d" % i ] = "point[%d]" % i
+
+  return compile(expr, substitutions, [ "point" ])
+
+
+
+
 def assembleMatrixFunction(function_list):
   if type(function_list[0]) == types.ListType:
     def f(x):
@@ -219,6 +257,17 @@ def assembleMatrixFunction(function_list):
     def f(x):
       return num.array([ func(x) for func in function_list ])
     return f
+
+
+
+
+def sumUp(list_of_expressions):
+  if len(list_of_expressions) == 0:
+    return 0
+  elif len(list_of_expressions) == 1:
+    return list_of_expressions[0]
+  else:
+    return ("+", list_of_expressions[0], sumUp(list_of_expressions[1:]))
 
 
 
@@ -241,4 +290,20 @@ def linearCombination(coefficients, expressions):
   if len(coefficients) > 1:
     result = ("+", result, linearCombination(coefficients[1:], expressions[1:]))
   return result
+
+
+
+
+def grad(expression, variables):
+  return [differentiate(expression, var) for var in variables]
+
+
+
+
+def laplace(expression, variables):
+  return sumUp([differentiate(differentiate(expression,var),var) for var in variables])
+
+
+
+
 
