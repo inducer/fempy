@@ -221,3 +221,20 @@ def writeGnuplotSparsityPattern(name, matrix):
     for i,j in matrix.indices():
         gnuplot_file.write("%d %d\n" % (i,j))
 
+
+def writeGnuplotMesh(mesh, filename):
+    mesh_func = mesh_function.discretizeFunction(mesh, lambda x: 0)
+
+    def writeNode(node_number):
+        gnuplot_file.write("%f %f\n" % (
+            nodes[node_number][0],
+            nodes[node_number][1] ))
+        
+    nodes,values,triangles,extra_polys = _getVisualizationData(mesh_func).getInfoTuple()
+
+    gnuplot_file = file(filename, "w")
+    for node_numbers in extra_polys:
+        for node_number in node_numbers:
+            writeNode(node_number)
+        writeNode(node_numbers[0])
+        gnuplot_file.write("\n\n")

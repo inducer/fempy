@@ -239,8 +239,6 @@ class _tPyangleMesh(tMesh):
       coordinates = num.array([pts.getSub(no, 0), pts.getSub(no, 1)])
       self.DOFManager.registerNode(no, coordinates, tracking_id, section)
 
-    pyangle.writeGnuplotMesh(",,mesh.data", out_p)
-
     # build elements ----------------------------------------------------------
     elements = []
     for tri in range(tris.size()):
@@ -372,9 +370,6 @@ class _tPyangleMesh(tMesh):
     
     return tMeshChange(self, _tTwoDimensionalRefinedMesh(
       input_p, self.Order, self.ShapeSections))
-
-
-
 
 class tTwoDimensionalMesh(_tPyangleMesh):
   def __init__(self, shape_sections, hole_starts = [], order = 1, refinement_func = None):
