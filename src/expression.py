@@ -6,9 +6,9 @@ from pattern import VAR
 
 
 
-def evaluate( expression, variable_assignments = {} ):
-  def ev( expression ):
-    return pattern.switch( ruleset, expression )
+def evaluate(expression, variable_assignments = {}):
+  def ev(expression):
+    return pattern.switch(ruleset, expression)
 
   ruleset = [
     ("+",VAR,VAR), lambda x,y: ev(x)+ev(y),
@@ -21,14 +21,14 @@ def evaluate( expression, variable_assignments = {} ):
     VAR, lambda x: x 
   ]
 
-  return ev( expression )
+  return ev(expression)
 
 
 
 
-def isConstant( expression, variable_assignments = {} ):
-  def isc( expression ):
-    return pattern.switch( ruleset, expression )
+def isConstant(expression, variable_assignments = {}):
+  def isc(expression):
+    return pattern.switch(ruleset, expression)
 
   ruleset = [
     ("+",VAR,VAR), lambda x,y: isc(x) and isc(y),
@@ -41,16 +41,16 @@ def isConstant( expression, variable_assignments = {} ):
     VAR, lambda x: True
   ]
 
-  return isc( expression )
+  return isc(expression)
 
 
 
 
-def differentiate( expression, variable ):
-  def diff( expression ):
-    return pattern.switch( ruleset, expression )
+def differentiate(expression, variable):
+  def diff(expression):
+    return pattern.switch(ruleset, expression)
   
-  def diffVariable( var ):
+  def diffVariable(var):
     if var == variable:
       return 1
     else:
@@ -60,7 +60,7 @@ def differentiate( expression, variable ):
     ("+",VAR,VAR), lambda x,y: ("+", diff(x), diff(y)),
     ("-",VAR,VAR), lambda x,y: ("-", diff(x), diff(y)),
     ("*",VAR,VAR), lambda x,y: ("+", ("*",diff(x),y),("*",x,diff(y))),
-    ("/",VAR,VAR), lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2 )),
+    ("/",VAR,VAR), lambda f,g: ("/", ("-", ("*",diff(f),g),("*",f,diff(g))), ("**", g, 2)),
     # This assumes that the exponent is constant.
     ("**",VAR,VAR), lambda x,y: ("*",y,("*",("**",x,y-1),diff(x))),
     ("-",VAR) , lambda x: ("-",diff(x)),
@@ -68,18 +68,18 @@ def differentiate( expression, variable ):
     VAR, lambda x: 0.
   ]
 
-  return diff( expression )
+  return diff(expression)
 
 
 
 
-def simplify( expression ):
-  if isConstant( expression ):
-    return evaluate( expression )
+def simplify(expression):
+  if isConstant(expression):
+    return evaluate(expression)
 
-  def simplifyPlus( x, y ):
-    x = simp( x )
-    y = simp( y )
+  def simplifyPlus(x, y):
+    x = simp(x)
+    y = simp(y)
 
     if x == 0:
       return y
@@ -87,9 +87,9 @@ def simplify( expression ):
       return x
     return ("+",x,y)
 
-  def simplifyMinus( x, y ):
-    x = simp( x )
-    y = simp( y )
+  def simplifyMinus(x, y):
+    x = simp(x)
+    y = simp(y)
 
     if x == 0:
       return ("-",y)
@@ -97,9 +97,9 @@ def simplify( expression ):
       return x
     return ("-",x,y)
   
-  def simplifyTimes( x, y ):
-    x = simp( x )
-    y = simp( y )
+  def simplifyTimes(x, y):
+    x = simp(x)
+    y = simp(y)
 
     if x == 0 or y == 0:
       return 0
@@ -109,16 +109,16 @@ def simplify( expression ):
       return x
     return ("*",x,y)
 
-  def simplifyDivision( x, y ):
-    x = simp( x )
-    y = simp( y )
+  def simplifyDivision(x, y):
+    x = simp(x)
+    y = simp(y)
 
     if y == 1:
       return x
     return ("/",x,y)
 
-  def simplifyPower( x, y ):
-    x = simp( x )
+  def simplifyPower(x, y):
+    x = simp(x)
 
     if y == 0:
       return 1
@@ -126,14 +126,14 @@ def simplify( expression ):
       return x
     return ("**",x,y)
 
-  def simp( expression ):
-    return pattern.switch( ruleset, expression )
+  def simp(expression):
+    return pattern.switch(ruleset, expression)
   
   ruleset = [
-    ("+",("-",VAR),("-",VAR)), lambda x,y: ("-",("+",simplify( x ), simplify( y ))),
-    ("+",VAR,("-",VAR)), lambda x,y: simplify( ("-",simplify( x ),simplify( y ))),
-    ("*",-1.,VAR), lambda x: ("-",simplify( x )),
-    ("*",VAR,-1.), lambda x: ("-", simplify( x )),
+    ("+",("-",VAR),("-",VAR)), lambda x,y: ("-",("+",simplify(x), simplify(y))),
+    ("+",VAR,("-",VAR)), lambda x,y: simplify(("-",simplify(x),simplify(y))),
+    ("*",-1.,VAR), lambda x: ("-",simplify(x)),
+    ("*",VAR,-1.), lambda x: ("-", simplify(x)),
 
     ("+",VAR,VAR), simplifyPlus,
     ("-",VAR,VAR), simplifyMinus,
@@ -146,99 +146,99 @@ def simplify( expression ):
     VAR, lambda x: x
   ]
 
-  return simp( expression )
+  return simp(expression)
 
 
 
 
-def infixify( expression, variable_substitutions = {} ):
+def infixify(expression, variable_substitutions = {}):
   determined_variables = []
 
-  def pythonify( expr ):
-    return pattern.switch( ruleset, expr )
+  def pythonify(expr):
+    return pattern.switch(ruleset, expr)
 
   ruleset = [
-    ("+",VAR,VAR), lambda x,y: "(%s + %s)" % ( pythonify(x), pythonify( y ) ),
-    ("-",VAR,VAR), lambda x,y: "(%s - %s)" % ( pythonify(x), pythonify( y ) ),
-    ("*",VAR,VAR), lambda x,y: "(%s * %s)" % ( pythonify(x), pythonify( y ) ),
-    ("/",VAR,VAR), lambda x,y: "(%s / %s)" % ( pythonify(x), pythonify( y ) ),
-    ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % ( pythonify(x), pythonify( y ) ),
+    ("+",VAR,VAR), lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
+    ("-",VAR,VAR), lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
+    ("*",VAR,VAR), lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
+    ("/",VAR,VAR), lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
+    ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
     ("-",VAR) , lambda x: "(-%s)"  % pythonify(x),
-    ("variable",VAR), lambda x:"%s" % str( variable_substitutions[x] ),
+    ("variable",VAR), lambda x:"%s" % str(variable_substitutions[x]),
     VAR, lambda x: str(x)
   ]
 
-  return pythonify( expression )
+  return pythonify(expression)
 
 
 
 
-def compile( expression, variable_substitutions = {}, variables = [] ):
+def compile(expression, variable_substitutions = {}, variables = []):
   determined_variables = []
 
-  def addVariable( var ):
+  def addVariable(var):
     if var in variable_substitutions:
       var = variable_substitutions[var]
     if var not in determined_variables:
-      determined_variables.append( var )
+      determined_variables.append(var)
     return var
 
-  def pythonify( expr ):
-    return pattern.switch( ruleset, expr )
+  def pythonify(expr):
+    return pattern.switch(ruleset, expr)
 
   ruleset = [
-    ("+",VAR,VAR), lambda x,y: "(%s + %s)" % ( pythonify(x), pythonify( y ) ),
-    ("-",VAR,VAR), lambda x,y: "(%s - %s)" % ( pythonify(x), pythonify( y ) ),
-    ("*",VAR,VAR), lambda x,y: "(%s * %s)" % ( pythonify(x), pythonify( y ) ),
-    ("/",VAR,VAR), lambda x,y: "(%s / %s)" % ( pythonify(x), pythonify( y ) ),
-    ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % ( pythonify(x), pythonify( y ) ),
+    ("+",VAR,VAR), lambda x,y: "(%s + %s)" % (pythonify(x), pythonify(y)),
+    ("-",VAR,VAR), lambda x,y: "(%s - %s)" % (pythonify(x), pythonify(y)),
+    ("*",VAR,VAR), lambda x,y: "(%s * %s)" % (pythonify(x), pythonify(y)),
+    ("/",VAR,VAR), lambda x,y: "(%s / %s)" % (pythonify(x), pythonify(y)),
+    ("**",VAR,VAR), lambda x,y: "(%s ** %s)" % (pythonify(x), pythonify(y)),
     ("-",VAR) , lambda x: "(-%s)"  % pythonify(x),
     ("variable",VAR), addVariable,
     VAR, lambda x: str(x)
   ]
 
-  pythonified = pythonify( expression )
+  pythonified = pythonify(expression)
 
   determined_variables.sort()
-  if len( variables ) == 0 and len(determined_variables ) != 0:
-    variable_str = ",".join( determined_variables )
+  if len(variables) == 0 and len(determined_variables) != 0:
+    variable_str = ",".join(determined_variables)
   else:
-    variable_str = ",".join( variables )
-  return eval( "lambda %s:%s" % (variable_str, pythonified) )
+    variable_str = ",".join(variables)
+  return eval("lambda %s:%s" % (variable_str, pythonified))
 
 
 
 
 # tools -----------------------------------------------------------------------
-def assembleMatrixFunction( function_list ):
-  if type( function_list[0] ) == types.ListType:
-    def f( x ):
-      return num.array( [ [ func( x ) for func in flist ] for flist in function_list ] )
+def assembleMatrixFunction(function_list):
+  if type(function_list[0]) == types.ListType:
+    def f(x):
+      return num.array([ [ func(x) for func in flist ] for flist in function_list ])
     return f
   else:
-    def f( x ):
-      return num.array( [ func( x ) for func in function_list ] )
+    def f(x):
+      return num.array([ func(x) for func in function_list ])
     return f
 
 
 
 
-def multiplyUp( list_of_expressions ):
-  if len( list_of_expressions ) == 0:
+def multiplyUp(list_of_expressions):
+  if len(list_of_expressions) == 0:
     return 1
-  elif len( list_of_expressions ) == 1:
+  elif len(list_of_expressions) == 1:
     return list_of_expressions[0]
   else:
-    return ("*", list_of_expressions[0], multiplyUp( list_of_expressions[1:] ) )
+    return ("*", list_of_expressions[0], multiplyUp(list_of_expressions[1:]))
 
 
 
 
-def linearCombination( coefficients, expressions ):
-  if len( coefficients ) == 0:
+def linearCombination(coefficients, expressions):
+  if len(coefficients) == 0:
     return 0
-  result = ("*", coefficients[0], expressions[0] )
-  if len( coefficients ) > 1:
-    result = ("+", result, linearCombination( coefficients[1:], expressions[1:] ) )
+  result = ("*", coefficients[0], expressions[0])
+  if len(coefficients) > 1:
+    result = ("+", result, linearCombination(coefficients[1:], expressions[1:]))
   return result
 

@@ -27,8 +27,8 @@ class tVisualizationData:
   extra nodes.
   """
 
-  def __init__( self, nodes, node_values, triangles,
-      extra_node_coordinates = [], extra_node_values = [] ):
+  def __init__(self, nodes, node_values, triangles,
+      extra_node_coordinates = [], extra_node_values = []):
     self.Nodes = nodes
     self.NodeValues = node_values
     self.Triangles = triangles
@@ -38,124 +38,124 @@ class tVisualizationData:
 
 
 
-def compileInfo( dof_manager, elements, solution ):
+def compileInfo(dof_manager, elements, solution):
   node_number_map = {}
   nodes = []
   values = []
   tris = []
   for el in elements:
-    data = el.visualizationData( solution )
+    data = el.visualizationData(solution)
     local_nodes = {}
 
     index = 0
     for node in data.Nodes:
-      node_number = dof_manager.getDegreeOfFreedomNumber( node )
+      node_number = dof_manager.getDegreeOfFreedomNumber(node)
       if node_number in node_number_map:
 	local_nodes[ index ] = node_number_map[ node_number ]
       else:
-	local_nodes[ index ] = len( nodes )
-	node_number_map[ node ] = len( nodes )
-	nodes.append( node.coordinates() )
-	values.append( data.NodeValues[ index ] )
+	local_nodes[ index ] = len(nodes)
+	node_number_map[ node ] = len(nodes)
+	nodes.append(node.coordinates())
+	values.append(data.NodeValues[ index ])
       index += 1
 
     index = -1
     for coords in data.ExtraNodeCoordinates:
-      local_nodes[ index ] = len( nodes )
-      nodes.append( coords )
-      values.append( data.ExtraNodeValues[ -(index+1) ] )
+      local_nodes[ index ] = len(nodes)
+      nodes.append(coords)
+      values.append(data.ExtraNodeValues[ -(index+1) ])
       index -= 1
 
     for na,nb,nc in data.Triangles:
-      tris.append( (local_nodes[na], local_nodes[nb], local_nodes[nc]) )
+      tris.append((local_nodes[na], local_nodes[nb], local_nodes[nc]))
 
   return nodes, values, tris
 
 
 
-def writeGnuplotFile( name, dof_manager, elements, solution ):
-  gnuplot_file = file( name, "w" )
+def writeGnuplotFile(name, dof_manager, elements, solution):
+  gnuplot_file = file(name, "w")
 
-  def writeNode( node ):
-    gnuplot_file.write( "%f %f %f\n" % (
+  def writeNode(node):
+    gnuplot_file.write("%f %f %f\n" % (
 	nodes[node][0],
 	nodes[node][1],
-	values[node] ) )
+	values[node]))
 
-  nodes,values,triangles = compileInfo( dof_manager, elements, solution )
+  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
   for tri_nodes in triangles:
     for node in tri_nodes:
-      writeNode( node )
-    writeNode( tri_nodes[0] )
-    gnuplot_file.write( "\n\n" )
+      writeNode(node)
+    writeNode(tri_nodes[0])
+    gnuplot_file.write("\n\n")
 
 
 
 
-def writeVtkFile( name, dof_manager, elements, solution ):
+def writeVtkFile(name, dof_manager, elements, solution):
   import pyvtk
 
-  nodes,values,triangles = compileInfo( dof_manager, elements, solution )
+  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
 
   my_nodes = []
   for node in nodes:
-    my_nodes.append( [ node[0], node[1], 0 ] )
+    my_nodes.append([ node[0], node[1], 0 ])
 
-  structure = pyvtk.PolyData( points = my_nodes, polygons = triangles)
+  structure = pyvtk.PolyData(points = my_nodes, polygons = triangles)
 
   pointdata = pyvtk. PointData(
-      pyvtk. Scalars(values, name="solution", lookup_table = "default") )
+      pyvtk. Scalars(values, name="solution", lookup_table = "default"))
 
-  vtk = pyvtk.VtkData( structure, "FEM result", pointdata )
-  vtk.tofile( name, "ascii" )
-
-
+  vtk = pyvtk.VtkData(structure, "FEM result", pointdata)
+  vtk.tofile(name, "ascii")
 
 
-def writeMatlabFile( name, dof_manager, elements, solution ):
-  m_file = file( name, "w" )
 
-  def writeMatlabVector( name, data ):
+
+def writeMatlabFile(name, dof_manager, elements, solution):
+  m_file = file(name, "w")
+
+  def writeMatlabVector(name, data):
     (h,) = data.shape
-    m_file.write( "%s = [\n" % name )
-    for i in range( 0,h ):
+    m_file.write("%s = [\n" % name)
+    for i in range(0,h):
       if i != h-1:
-	m_file.write( "%f;\n" % data[ i ] )
+	m_file.write("%f;\n" % data[ i ])
       else:
-	m_file.write( "%f" % data[ i ] )
-    m_file.write( "];\n" )
+	m_file.write("%f" % data[ i ])
+    m_file.write("];\n")
 
-  def writeMatlabMatrix( name, data ):
+  def writeMatlabMatrix(name, data):
     (h,w) = data.shape
-    m_file.write( "%s = [\n" % name )
-    for i in range( 0,h ):
-      for j in range( 0,w ):
+    m_file.write("%s = [\n" % name)
+    for i in range(0,h):
+      for j in range(0,w):
 	if j != w-1:
-	  m_file.write( "%f," % data[ i,j ] )
+	  m_file.write("%f," % data[ i,j ])
 	else:
 	  if i != h-1:
-	    m_file.write( "%f;\n" % data[ i,j ] )
+	    m_file.write("%f;\n" % data[ i,j ])
 	  else:
-	    m_file.write( "%f" % data[ i,j ] )
-    m_file.write( "];\n" )
+	    m_file.write("%f" % data[ i,j ])
+    m_file.write("];\n")
 
-  nodes,values,triangles = compileInfo( dof_manager, elements, solution )
+  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
 
-  coords = num.array( nodes )
+  coords = num.array(nodes)
 
   x = coords[:,0]
   y = coords[:,1]
 
-  writeMatlabVector( "x", x )
-  writeMatlabVector( "y", y )
+  writeMatlabVector("x", x)
+  writeMatlabVector("y", y)
 	  
-  writeMatlabVector( "solution", num.array( values ) )
+  writeMatlabVector("solution", num.array(values))
 
-  tris = num.array( [ [a+1,b+1,c+1] for (a,b,c) in triangles ] )
+  tris = num.array([ [a+1,b+1,c+1] for (a,b,c) in triangles ])
 
-  writeMatlabMatrix( "tris", tris ) 
+  writeMatlabMatrix("tris", tris) 
 
-  m_file.write( "trisurf( tris, x, y, solution )" )
+  m_file.write("trisurf(tris, x, y, solution)")
 
 
 
