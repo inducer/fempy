@@ -255,7 +255,7 @@ class tFormFunctionKit:
             shape_section = None
             tracking_id = None
             if na.ShapeSection is not None and \
-                 na.ShapeSection == nb.ShapeSection and \
+                 na.ShapeSection is nb.ShapeSection and \
                  na.ShapeSection.containsPoint(coordinates):
                 shape_section = na.ShapeSection
                 tracking_id = shape_section.TrackingId

@@ -115,7 +115,7 @@ class tSpatialBinaryTreeBucket:
       for el, bbox in self.Elements:
 	if el.isInElement(point):
 	  return el
-      return None
+      raise RuntimeError, "No element found at %s." % str(point)
 
   def visualize(self, file):
     file.write("%f %f\n" % (self.BottomLeft[0], self.BottomLeft[1]));

@@ -154,9 +154,14 @@ class tInverseDeformation:
   def __call__(self, y):
     def newton_func(x):
       return self.F(x) - y
-    return tools.findVectorZeroByNewton(newton_func, 
-                                        self.FPrime, 
-                                        num.matrixmultiply(self.MatrixInverse, y - self.NC0))
+    try:
+      linear_inverse = num.matrixmultiply(self.MatrixInverse, y - self.NC0)
+      return tools.findVectorZeroByNewton(newton_func, 
+                                          self.FPrime, 
+                                          linear_inverse)
+    except RuntimeError:
+      print "WARNING: Transform inversion failed"
+      return linear_inverse
 
 
 
@@ -441,5 +446,43 @@ class _tTwoDimensionalRefinedMesh(_tPyangleMesh):
 
 
 
+
+# Tools -----------------------------------------------------------------
+def getBoundaryEdges(mesh):
+  result = tools.tDictionaryWithDefault(lambda x: [])
+  for el in mesh.elements():
+    #print el.transformToReal(nd.Coordinates)
+    try:
+      unit_coords = dict([(nd,el.transformToUnit(nd.Coordinates)) for nd in el.nodes()])
+    except RuntimeError:
+      for nd in el.nodes():
+        print "ALL", nd.Coordinates
+      raise
+    center = tools.average(unit_coords.values())
+
+    def cent_angle(nd):
+      my_unit_coords = unit_coords[nd]-center
+      return math.atan2(my_unit_coords[1], my_unit_coords[0])
+    # sort nodes in counterclockwise order
+    sorted_nodes = el.nodes()[:]
+    sorted_nodes.sort(lambda n1, n2: cmp(cent_angle(n1), cent_angle(n2)))
+    sorted_nodes.append(sorted_nodes[0])
+
+    last_node = sorted_nodes[0]
+    last_shape_section = sorted_nodes[0].ShapeSection
+    for nd in sorted_nodes[1:]:
+      ss1 = last_node.ShapeSection
+      ss2 = nd.ShapeSection
+      if ss1 and \
+           ss1.containsPoint(nd.Coordinates) and \
+           ss1.containsPoint(last_node.Coordinates):
+        result[ss1.TrackingId].append((last_node, nd))
+      elif ss2 and \
+           ss2.containsPoint(nd.Coordinates) and \
+           ss2.containsPoint(last_node.Coordinates):
+        result[ss2.TrackingId].append((last_node, nd))
+      last_node = nd
+      last_shape_section = nd.ShapeSection
+  return result
 
 
