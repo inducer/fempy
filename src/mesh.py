@@ -26,8 +26,11 @@ class tShapeGuide:
 
   def containsPoint(self, point, relative_threshold):
     a,b = self.Interval
-    return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
-               point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
+    try:
+      return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
+                 point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
+    except ValueError:
+      return False
 
 
 
@@ -132,15 +135,32 @@ class tMesh:
     """
     return None
 
-  def findElement(self, element):
+  def findElement(self, point):
     # double-curvy bend: instance-modifying code.
     self.findElement = spatial_btree.buildElementFinder(self.Elements)
-    return self.findElement(element)
+    return self.findElement(point)
 
 
 
 
 # Pyangle mesh ----------------------------------------------------------
+class tInverseDeformation:
+  def __init__(self, f, f_prime, matinv, nc0):
+    self.F = f
+    self.FPrime = f_prime
+    self.MatrixInverse = matinv
+    self.NC0 = nc0
+
+  def __call__(self, y):
+    def newton_func(x):
+      return self.F(x) - y
+    return tools.findVectorZeroByNewton(newton_func, 
+                                        self.FPrime, 
+                                        num.matrixmultiply(self.MatrixInverse, y - self.NC0))
+
+
+
+
 class _tPyangleMesh(tMesh):
   """This is an internal class.
   Do not use from the outside.
@@ -154,15 +174,12 @@ class _tPyangleMesh(tMesh):
 
   def __getstate__(self):
     my_dict = self.__dict__.copy()
-    del my_dict["Elements"]
-    del my_dict["DOFManager"]
     del my_dict["ElementFinder"]
     return my_dict
 
   def __setstate__(self, my_dict):
     tMesh.__init__(self)
     self.__dict__.update(my_dict)
-    self.__postprocessTriangleOutput__(self.GeneratingParameters)
 
   def findShapeGuideNumber(self, number):
     if number == 0:
@@ -327,19 +344,13 @@ class _tPyangleMesh(tMesh):
         func_transform_jacobian = expression.compileMatrixFunction(
           expression.jacobian(expr_transform, ["0", "1"]))
         
-        def inv_func(point):
-          def newton_func(x):
-            return func_transform(x)-point
-          return tools.findVectorZeroByNewton(newton_func, 
-                                              func_transform_jacobian, 
-                                              num.matrixmultiply(matinv, point - nc0))
-
         elements.append(
           element.tDistortedTwoDimensionalTriangularFiniteElement(
           my_nodes, self.DOFManager, element.QuadraticFormFunctionKit,
           func_transform, 
           func_transform_jacobian,
-          inv_func))
+          tInverseDeformation(func_transform, func_transform_jacobian,
+                              matinv, nc0)))
 
     self.Elements = elements
 
@@ -350,7 +361,7 @@ class _tPyangleMesh(tMesh):
     marked_elements = 0
     for i, el in zip(range(len(self.Elements)), self.Elements):
       if element_needs_refining(el):
-        input_p.TriangleAreas.set(i, el.area() * 0.3)
+        input_p.TriangleAreas.set(i, el.area() * 0.7)
         marked_elements += 1
       else:
         input_p.TriangleAreas.set(i, -1)

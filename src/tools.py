@@ -195,7 +195,11 @@ class tFakeList:
         return self._Length
 
     def __getitem__(self, index):
-        return self._Function(index)
+        try:
+            return [self._Function(i)
+                    for i in range(*index.indices(self._Length))]
+        except AttributeError:
+            return self._Function(index)
 
 
 
@@ -297,7 +301,18 @@ def makeRotationMatrix(radians, n = 2, axis1 = 0, axis2 = 1, typecode = num.Floa
 
 
 def getParallelogramVolume(vectors):
-    return vectors[0][0] * vectors[1][1] - vectors[1][0] * vectors[0][1]
+    if vectors[0].shape[0] == 2:
+        return vectors[0][0] * vectors[1][1] - vectors[1][0] * vectors[0][1]
+    else:
+        raise RuntimeError, "not implemented"
+
+
+
+
+def unitVector(i, dim, typecode = num.Float):
+    uvec = num.zeros((dim,), num.Float)
+    uvec[i] = 1
+    return uvec
 
 
 

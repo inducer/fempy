@@ -87,6 +87,9 @@ class tFiniteElement:
   def nodeNumbers(self):
     return self.NodeNumbers
 
+  def formFunctions(self):
+    return self.FormFunctions
+
   # Tools ---------------------------------------------------------------------
   def transformToReal(self, point):
     """Transforms a unit vector inside the unit element to its corresponding
@@ -172,30 +175,26 @@ class tFiniteElement:
     raise RuntimeError, "not implemented"
 
   # Form functions ------------------------------------------------------------
-  def getFormFunctionCombination(self, coefficients):
-    """This function returns a function that represents linear combination 
-    of form functions, with the given coefficients. The returned functions is 
-    defined on the unit element.
+  def getFormFunctionCombination(self, coefficients, point):
+    """This function returns a linear combination of form 
+    function values at `point', with the given coefficients. 
+    The function is defined on the unit element.
     """
-    def f(point):
-      result = 0
-      for i in range(len(self.FormFunctions)):
-	result += self.FormFunctions[i](point) * coefficients[ i ]
+    result = 0
+    for i in range(len(self.FormFunctions)):
+      result += self.FormFunctions[i](point) * coefficients[ i ]
       return result
-    return f
 
-  def getFormFunctionCombinationGradient(self, coefficients):
+  def getFormFunctionCombinationGradient(self, coefficients, point):
     """This function returns the gradient of a linear combination of form 
-    functions, with the given coefficients. The returned function is defined 
+    functions, with the given coefficients. The function is defined 
     on the unit element.
     """
-    def f(point):
-      result = num.zeros((2,), num.Float)
-      for i in range(len(self.FormFunctions)):
-        for j in range(2):
-          result[j] += self.DifferentiatedFormFunctions[i][j](point) * coefficients[i]
-      return result
-    return f
+    result = num.zeros((2,), coefficients.typecode())
+    for i in range(len(self.FormFunctions)):
+      for j in range(2):
+        result[j] += self.DifferentiatedFormFunctions[i][j](point) * coefficients[i]
+    return result
 
   # Visualization -------------------------------------------------------------
   def getVisualizationData(self, solution_vector, vis_data):
@@ -404,10 +403,10 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
 	influence_matrix[row,column] = \
 	influence_matrix[column,row] = \
-	    integration.integrateOnUnitTriangle(functionInIntegral)
+        integration.integrateOnUnitTriangle(functionInIntegral)
 
     builder.addScatteredSymmetric(jacobian_det * influence_matrix, 
-	self.NodeNumbers)
+                                  self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
     n = len(self.FormFunctions)
@@ -473,13 +472,19 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
-    unit_coords = self.transformToUnit(point)
-    neg_bound = -1e-6
-    pos_bound = 1+1e-6
-    return \
-        neg_bound < unit_coords[0] < pos_bound and \
-        neg_bound < unit_coords[1] < pos_bound and \
-        neg_bound < 1-unit_coords[0]-unit_coords[1] < pos_bound
+    try:
+      unit_coords = self.transformToUnit(point)
+      neg_bound = -1e-6
+      pos_bound = 1+1e-6
+      return \
+             neg_bound < unit_coords[0] < pos_bound and \
+             neg_bound < unit_coords[1] < pos_bound and \
+             neg_bound < 1-unit_coords[0]-unit_coords[1] < pos_bound
+    except ValueError:
+      # This can happen for deformed elements, the deformation
+      # function may not be defined everywhere. If this happens,
+      # we decide that we're not inside the element.
+      return False
 
   # Integral contributions ----------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both", factor = 1.):
@@ -535,7 +540,6 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
-    print "boing!"
     builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
