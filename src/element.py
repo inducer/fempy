@@ -166,6 +166,8 @@ class tFiniteElement(object):
         the point of evaluation and returns a single floating
         point value.
 
+        The (x,y) are supplied in transformed coordinates.
+
         The correct entries in the matrix are found through the
         DOF manager lookup facility.
         """
@@ -304,6 +306,9 @@ class tOneDimensionalFiniteElement(tFiniteElement):
     def __init__(self, base_nodes, dof_manager, form_function_kit):
         self.Origin = base_nodes[0].Coordinates
         self.End = base_nodes[1].Coordinates
+        self.End = base_nodes[1].Coordinates
+        self.RawOrigin = num.array([0], num.Float)
+        self.RawEnd = num.array([1], num.Float)
         self.Length = (self.End-self.Origin)[0]
         assert self.Length > 0
 
@@ -336,8 +341,8 @@ class tOneDimensionalFiniteElement(tFiniteElement):
             for column in range(0, row + 1):
                 drdx = self.DifferentiatedFormFunctions[row][0]
                 dcdx = self.DifferentiatedFormFunctions[column][0]
-                integral = 1/self.Length**2 * \
-                           integration.integrateAlongLine(self.Origin, self.End,
+                integral = 1/self.Length * \
+                           integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
                                                           lambda p: drdx(p)*dcdx(p))
                 influence_matrix[row,column] = influence_matrix[column,row] =  integral
         return influence_matrix
@@ -349,7 +354,8 @@ class tOneDimensionalFiniteElement(tFiniteElement):
             for column in range(0, row + 1):
                 rf = self.FormFunctions[row]
                 cf = self.FormFunctions[column]
-                integral = integration.integrateAlongLine(self.Origin, self.End,
+                integral = self.Length * \
+                           integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
                                                           lambda p: rf(p)*cf(p))
                 influence_matrix[row,column] = influence_matrix[column,row] = \
                                                integral
@@ -361,8 +367,9 @@ class tOneDimensionalFiniteElement(tFiniteElement):
         influence_matrix = num.zeros((ff_count,), typecode)
         for row in range(0, ff_count):
             rf = self.FormFunctions[row]
-            integral = integration.integrateAlongLine(self.Origin, self.End,
-                                                      lambda p: f(p, rf(p)))
+            integral = self.Length * \
+                       integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
+                                                      lambda p: f(self.transformToReal(p), rf(p)))
             influence_matrix[row] = integral
         return influence_matrix
 
@@ -377,7 +384,8 @@ class tOneDimensionalFiniteElement(tFiniteElement):
 
         for row in range(0, ff_count):
             rf = self.FormFunctions[row]
-            integral = integration.integrateAlongLine(self.Origin, self.End,
+            integral = self.Length * \
+                       integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
                                                       functionInIntegral)
             influence_matrix[row] = integral
         return influence_matrix
@@ -498,7 +506,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
         for i in range(n):
             ff = self.FormFunctions[i]
             influences[i] = jacobian_det * integration.integrateOnUnitTriangle(
-                lambda point: f(self.transformToReal(point) , ff( point)))
+                lambda point: f(self.transformToReal(point) , ff(point)))
 
         return influences
 

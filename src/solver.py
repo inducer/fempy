@@ -34,6 +34,14 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 
+def getNodesWithTrackingId(mesh, id):
+    return [node 
+            for node in mesh.dofManager()
+            if node.TrackingId == id]
+
+
+
+
 def getDirichletConstraints(mesh, u_d):
     constraints = {}
     for node in [node 
@@ -327,6 +335,18 @@ class tLaplacianEigenproblemSolver:
         a_herm_ex = num.hermite(a_ex)
         a_op = algo.makeMatrixOperator(a_ex)
         a_herm_op = algo.makeMatrixOperator(a_herm_ex)
+
+        mm = num.matrixmultiply
+        print "A"
+        mtools.printComplexMatrixInGrid(a)
+        print "S"
+        mtools.printComplexMatrixInGrid(self.FullS)
+        print "M"
+        mtools.printComplexMatrixInGrid(self.FullM)
+        print "ASA_H"
+        mtools.printComplexMatrixInGrid(mm(a, mm(self.FullS, num.hermite(a))))
+        print "AMA_H"
+        mtools.printComplexMatrixInGrid(mm(a, mm(self.FullM, num.hermite(a))))
 
         s_ex = num.asarray(self.FullS, self.FullS.typecode(), num.SparseExecuteMatrix)
         s_op = algo.makeMatrixOperator(s_ex)
