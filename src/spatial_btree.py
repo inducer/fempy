@@ -1,4 +1,5 @@
 import pylinear.matrices as num
+import tools
 
 
 
@@ -79,8 +80,8 @@ class tSpatialBinaryTreeBucket:
 	self.Buckets = makeBuckets(self.BottomLeft, self.TopRight, 
 	  self.AllBuckets)
 
-	for el, bbox in self.Elements:
-	  self.insertIntoSubdivision(el, bbox)
+	for el, el_bbox in self.Elements:
+	  self.insertIntoSubdivision(el, el_bbox)
 	
 	# Free up some memory
 	del self.Elements
@@ -136,6 +137,11 @@ def buildSpatialBinaryTree(elements):
   bucket = tSpatialBinaryTreeBucket(bottom_left, top_right)
   for el, bbox in elements_with_boxes:
     bucket.addElement(el, bbox)
+
+    # test
+    center = tools.average([node.Coordinates for node in el.nodes()])
+    assert el.isInElement(center)
+    bucket.findElement(center)
   return bucket
 
 

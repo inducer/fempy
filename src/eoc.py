@@ -33,6 +33,9 @@ class tEOCRecorder:
   def __init__(self):
     self.History = []
 
+  def history(self):
+    return self.History
+
   def addDataPoint(self, abscissa, error):
     self.History.append((abscissa, error))
 
@@ -54,11 +57,11 @@ class tEOCRecorder:
   def writeGnuplotFile(self, filename):
     outfile = file(filename, "w")
     for absc, err in self.History:
-      outfile.write("%f %f\n" % (math.log10(absc), math.log10(err)))
+      outfile.write("%f %f\n" % (absc, err))
     result = self.estimateOrderOfConvergence()
     const = result[0,0]
     order = result[0,1]
     outfile.write("\n")
     for absc, err in self.History:
-      outfile.write("%f %f\n" % (math.log10(absc), math.log10(const * absc**(-order))))
+      outfile.write("%f %f\n" % (absc, const * absc**(-order)))
 

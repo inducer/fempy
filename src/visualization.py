@@ -232,6 +232,7 @@ def writeGnuplotMesh(mesh, filename):
         
     nodes,values,triangles,extra_polys = _getVisualizationData(mesh_func).getInfoTuple()
 
+    print "DUDE!"
     gnuplot_file = file(filename, "w")
     for node_numbers in extra_polys:
         for node_number in node_numbers:
