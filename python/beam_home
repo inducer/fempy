@@ -1,3 +1,0 @@
-#! /bin/bash
-
-rsync -e ssh --verbose --progress * ak@aramis.ath.cx:diplomarbeit/tryer

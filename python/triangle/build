@@ -1,4 +1,0 @@
-#! /bin/bash
-c++ -DTRILIBRARY -DANSI_DECLARATORS \
-  -I$HOME/pool/include/python2.3 \
-  -shared -o trianglemodule.so trianglemodule.c triangle.c

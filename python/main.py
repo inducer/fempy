@@ -219,10 +219,10 @@ class tNode:
 
 # finite element classes ------------------------------------------------------
 class tFiniteElementError(Exception):
-  def __init__(self, value):
+  def __init__( self, value ):
     self.value = value
-  def __str__(self):
-    return repr(self.value)
+  def __str__( self ):
+    return repr( self.value )
 
 
 
@@ -249,7 +249,8 @@ class tFiniteElement:
 
     where \phi_i and \phi_j run through all the form functions present in
     the element. The correct entries in the matrix are found through the
-    builder's lookup facility."""
+    DOF manager lookup facility.
+    """
     pass
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
@@ -259,7 +260,8 @@ class tFiniteElement:
 
     where \phi_i and \phi_j run through all the form functions present in
     the element. The correct entries in the matrix are found through the
-    builder's lookup facility."""
+    DOF manager lookup facility.
+    """
     pass
 
   def addVolumeIntegralOverFormFunction( self, builder, f ):
@@ -274,7 +276,16 @@ class tFiniteElement:
     point value.
 
     The correct entries in the matrix are found through the
-    builder's lookup facility."""
+    DOF manager lookup facility.
+    """
+    pass
+
+  def getSolutionFunction( self, solution_vector ):
+    """Once the linear system has been solved, you can use this
+    function to obtain the actual solution function which, in
+    general, would be the appropriate linear combination of its
+    form functions.
+    """
     pass
 
 
@@ -288,6 +299,8 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     ("variable","y"),
     ]
 
+  FormFunctionCount = len( FormFunctionExpressions )
+
   def ffcompile( expr ):
     return expression.compile( expr, { "x": "point[0]", "y": "point[1]" }, [ "point" ] )
 
@@ -300,12 +313,28 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     [ ffcompile( expression.simplify( expression.differentiate( expr, "y" ) ) )
       for expr in FormFunctionExpressions ]
 
+  def computeFormFunctionCrossIntegrals( formfunc ):
+    result = num.zeros( 
+	( len( formfunc), len( formfunc )),
+	num.Float )
 
+    for i in range( 0, len( formfunc ) ):
+      for j in range( 0, i+1 ):
+	fi = formfunc[ i ]
+	fj = formfunc[ j ]
 
+	result[i,j] = result[j,i] = \
+	  integration.integrateFunctionOnUnitTriangle(
+	      lambda point: fi( point ) * fj( point ) )
+    return result
+
+  FormFunctionCrossIntegrals = computeFormFunctionCrossIntegrals( 
+      FormFunctions )
 
   # initialization ------------------------------------------------------------
   def __init__( self, nodes, dof_manager ):
     tFiniteElement.__init__( self, nodes, dof_manager )
+
     self.X = map( lambda node: node.coordinates()[ 0 ], self.Nodes )
     self.Y = map( lambda node: node.coordinates()[ 1 ], self.Nodes )
 
@@ -372,7 +401,8 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     builder.add( influence_matrix, self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
-    raise tFiniteElementError, "NYI: addVolumeIntegralOverFormFunctions" 
+    builder.add( self.Area * self.FormFunctionCrossIntegrals, 
+	self.NodeNumbers )
 
   def addVolumeIntegralOverFormFunction( self, builder, f ):
     # FIXME: this is way past inexact
@@ -380,6 +410,14 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     influences = num.ones( len( self.Nodes ) ) * self.Area * (1/3.) * f( self.barycenter() )
     builder.add( influences, self.NodeNumbers )
 
+  def getSolutionFunction( self, solution_vector ):
+    node_values = num.take( solution_vector, self.NodeNumbers )
+    def f( point ):
+      result = 0
+      for i in range( 0, self.FormFunctionCount ):
+	result += self.FormFunction[ i ] * node_values[ i ]
+      return result
+    return f
 
 
 
@@ -430,7 +468,7 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
   s_builder = tSymmetricSparseMatrixBuilder( dof_count )
   b_builder = tDenseVectorBuilder( dof_count )
 
-  print "grad..."
+  print "matrix..."
   for el in elements:
     el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
     el.addVolumeIntegralOverFormFunction( b_builder, f )
@@ -457,11 +495,28 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
 
   residual = num.zeros( x.shape, num.Float )
   compiled_s.matvec( x, residual )
-
   residual -= b_mat
+
   print "  absolute residual: ", norm2( residual )
 
   return x
+
+
+
+
+def solveHelmholtz( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 ):
+  dof_count = dof_manager.countDegreesOfFreedom()
+
+  s_builder = tSymmetricSparseMatrixBuilder( dof_count )
+  m_builder = tSymmetricSparseMatrixBuilder( dof_count )
+
+  print "matrix..."
+  for el in elements:
+    el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
+    el.addVolumeIntegralOverFormFunctions( m_builder )
+
+
+
 
 
 
@@ -568,8 +623,8 @@ def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 40
-  ny = 40
+  nx = 100
+  ny = 100
 
   center = num.array( [ width/2, height/2 ] )
 

@@ -212,11 +212,13 @@
 
 /* #define SINGLE */
 
+#if 0
 #ifdef SINGLE
 #define REAL float
 #else /* not SINGLE */
 #define REAL double
 #endif /* not SINGLE */
+#endif
 
 /* If yours is not a Unix system, define the NO_TIMER compiler switch to     */
 /*   remove the Unix-specific timing code.                                   */
@@ -541,7 +543,8 @@ struct osub {
 /*   marker, and sometimes a pointer to a triangle, is appended after the    */
 /*   REALs.                                                                  */
 
-typedef REAL *vertex;
+/* typedef REAL *vertex; */
+/* moved to header file. */
 
 /* A queue used to store encroached subsegments.  Each subsegment's vertices */
 /*   are stored so that we can check whether a subsegment is still the same. */

@@ -1,3 +1,12 @@
+#ifndef __TRIANGLE_H
+#define __TRIANGLE_H
+
+
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*****************************************************************************/
 /*                                                                           */
 /*  (triangle.h)                                                             */
@@ -243,6 +252,8 @@
 /*                                                                           */
 /*****************************************************************************/
 
+typedef double REAL;
+
 struct triangulateio {
   REAL *pointlist;                                               /* In / out */
   REAL *pointattributelist;                                      /* In / out */
@@ -274,9 +285,18 @@ struct triangulateio {
   int numberofedges;                                             /* Out only */
 };
 
-#ifdef ANSI_DECLARATORS
 void triangulate(char *, struct triangulateio *, struct triangulateio *,
                  struct triangulateio *);
-#else /* not ANSI_DECLARATORS */
-void triangulate();
-#endif /* not ANSI_DECLARATORS */
+
+/* external refinement test */
+typedef REAL *vertex;
+
+int triunsuitable(vertex triorg, vertex tridest, vertex triapex, REAL area);
+
+#ifdef __cplusplus
+}
+#endif
+
+
+
+#endif
