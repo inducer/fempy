@@ -6,6 +6,7 @@ import LinearAlgebra as la
 import integration
 import expression
 import form_function
+import visualization
 
 
 
@@ -92,10 +93,10 @@ class tFiniteElement:
     """
     pass
 
-  def visualize( self, announce_triangle_func, solution_vector ):
+  def visualizationData( self, solution_vector ):
+    """This function returns a visualization.tVisualizationData structure
+    for this element, taking into account the given solution vector.
     """
-    """
-    # FIXME provide documentation
     pass
 
 
@@ -258,5 +259,12 @@ tTwoDimensionalLinearTriangularFiniteElement.compileFormFunctions()
 class tTwoDimensionalQuadraticTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
   FormFunctionExpressions = form_function.makeFormFunctions( 2, 
     [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ] )
+
+  def visualizationData( self, solution_vector ):
+    return visualization.tVisualizationData( 
+	self.Nodes, 
+	[ solution_vector[ n ] for n in self.NodeNumbers ],
+	[ (0,3,5), (3,1,4), (3,4,5), (5,4,2) ] )
+
 tTwoDimensionalQuadraticTriangularFiniteElement.compileFormFunctions()
 

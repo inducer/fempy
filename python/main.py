@@ -255,8 +255,8 @@ def poissonDemo():
 
   s_f1 = makeSolutionFunction( elements, solution, finder )
 
-  visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
-  #visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
+  #visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
   #visualisation.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
