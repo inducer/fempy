@@ -143,11 +143,17 @@ class tFiniteGrid(tGrid):
         """
         return [high-low for low, high in self._Limits]
 
-    def gridIntervalCounts(self):
+    def gridPointCount(self):
         """Returns the number of grid intervals in each direction.
         """
-        return [high-low-1 for low, high in self._Limits]
-    
+        return product(self.gridPointCounts())
+
+    def isWithinBounds(self, key):
+        for el, (low, high) in zip(key, self._Limits):
+            if not (low <= el < high):
+                return False
+        return True
+
     def asSequence(self):
         return tLexicographicSequencer(self, self._Limits)
 
@@ -178,6 +184,10 @@ class tFiniteGrid(tGrid):
     def reducePeriodically(self, key):
         return tuple([
             el % (high-low) for el, (low, high) in zip(key, self._Limits)])
+
+    def reduceToClosest(self, key):
+        return tuple([
+            max(min(high-1, el), low) for el, (low, high) in zip(key, self._Limits)])
   
 
 
@@ -186,6 +196,14 @@ def makeSubdivisionGrid(origin, grid_vectors, limits):
     interval_counts = [high - low - 1 for low, high in limits]
     my_gvs = [gv / float(ivs) for gv, ivs in zip(grid_vectors, interval_counts)]
     return tFiniteGrid(origin, my_gvs, limits)
+    
+
+
+
+def makeCellCenteredGrid(origin, grid_vectors, limits):
+    my_gvs = [gv / float(high - low) for gv, (low, high) in zip(grid_vectors, limits)]
+    return tFiniteGrid(origin + generalSum(my_gvs) * 0.5,
+                       my_gvs, limits)
     
 
 
