@@ -83,6 +83,12 @@ class tMeshFunction(object):
     def __rmul__(self, factor):
         return self.copy(vector = factor * self.Vector)
 
+    def __div__(self, divisor):
+        return self.copy(vector = self.Vector/ divisor)
+
+    def __imul__(self, divisor):
+        self.Vector /= divisor
+
     def realPart(self):
         return self.copy(vector = self.Vector.real)
 

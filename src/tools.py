@@ -151,17 +151,29 @@ class tFiniteGrid(tGrid):
     def asSequence(self):
         return tLexicographicSequencer(self, self._Limits)
 
-    def chopUpperBoundary(self):
+    def chopUpperBoundary(self, by = 1):
         return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low, high-1) for low, high in self._Limits])
+                           [(low, high-by) for low, high in self._Limits])
 
-    def chopLowerBoundary(self):
+    def chopLowerBoundary(self, by = 1):
         return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low+1, high) for low, high in self._Limits])
+                           [(low+by, high) for low, high in self._Limits])
 
-    def chopBothBoundaries(self):
+    def chopBothBoundaries(self, by = 1):
         return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low+1, high-1) for low, high in self._Limits])
+                           [(low+by, high-by) for low, high in self._Limits])
+
+    def enlargeAtUpperBoundary(self, by = 1):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low, high+by) for low, high in self._Limits])
+
+    def enlargeAtLowerBoundary(self, by = 1):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low-by, high) for low, high in self._Limits])
+
+    def enlargeAtBothBoundaries(self, by = 1):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low-by, high+by) for low, high in self._Limits])
 
     def reducePeriodically(self, key):
         return tuple([
