@@ -69,6 +69,7 @@ class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
     h,w = mat.shape
 
     mat[dof_number] = num.zeros((h,), num.Float)
+    mat[:,dof_number] = num.zeros((h,), num.Float)
     mat[dof_number, dof_number] = 1.
 
   def column(self, i):
@@ -76,7 +77,7 @@ class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
 
   def add(self, small_matrix, small_matrix_rows):
     for i,mi in zip(range(len(small_matrix_rows)), small_matrix_rows):
-      for j,mj in zip(range(len(small_matrix_rows)), small_matrix_rows):
+      for j,mj in zip(range(i+1), small_matrix_rows[:i+1]):
         self.Matrix[mi,mj] += small_matrix[i,j]
 
 

@@ -186,12 +186,12 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob("geometry")
-  nodes, elements = buildRectangularGeometry(dof_manager, width / nx, height / ny, nx, ny, False)
+  #nodes, elements = buildRectangularGeometry(dof_manager, width / nx, height / ny, nx, ny, False)
 
   def needsRefinement(vert_origin, vert_destination, vert_apex, area):
     return area > 0.001
-  #shape = [ (0,0), (1,0), (1,1), (0,1) ]
-  #nodes, elements = buildShapeGeometry(dof_manager, shape, needsRefinement, False)
+  shape = [ (0.01,0), (1,0), (1,1), (0,1) ]
+  nodes, elements = buildShapeGeometry(dof_manager, shape, needsRefinement, False)
   job.done()
 
   job = tJob("btree")

@@ -28,16 +28,29 @@ def solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0):
   job = tJob("bcs")
   b_mat = b_builder.matrix()
   
+  nonzero_diri_nodes = []
   for node in dirichlet_nodes:
     boundary_value = u_d(node.coordinates())
     i = dof_manager.getDegreeOfFreedomNumber(node)
-    b_mat += s_builder.column(i) * boundary_value
+    if boundary_value != 0:
+      b_mat += s_builder.column(i) * boundary_value
+      nonzero_diri_nodes.append((i,boundary_value))
     s_builder.forceIdentityMap(i)
     b_mat[ i ] = -boundary_value
 
-  negated_b = b_builder.matrix() * -1
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+  # FIXME: odd copying semantics of b_mat
+
+  #negated_b = b_builder.matrix() * -1
+  negated_b = b_mat * -1
+
   s = s_builder.matrix()
-  writeMatrixAsCSV("+out.csv", s)
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseSymmetricExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)
@@ -49,9 +62,7 @@ def solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0):
   job = tJob("solve")
   s_inv_op.apply(negated_b, x)
   job.done()
-  #print "  info:", info
-  #print "  iter:", iter
-  #print "  relative residual: ", relres
+  print "  iter:", s_inv_op.last_iteration_count
 
   residual = num.matrixmultiply(compiled_s, x) - b_mat
 
