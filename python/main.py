@@ -85,8 +85,6 @@ def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False 
 def buildShapeGeometry( dof_manager, shape_points, refinement_func ):
   out_p = pyangle.triangulateArea( shape_points, refinement_func = refinement_func )
 
-  pyangle.writeGnuplotMesh( "+tris.dat", out_p )
-
   pts = out_p.Points
   tris = out_p.Triangles
 
@@ -147,12 +145,12 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob( "geometry" )
-  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
+  #nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, False )
 
   def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
     return area > 0.001
-  shape = [ (0,0), (1,0), (1,1), (0,1) ]
-  #nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement )
+  shape = [ (0.2,0), (1,0), (1,1), (0,1) ]
+  nodes, elements = buildShapeGeometry( dof_manager, shape, needsRefinement )
   job.done()
 
   job = tJob( "btree" )
@@ -170,9 +168,9 @@ def poissonDemo():
 
   s_f1 = makeSolutionFunction( elements, solution, finder )
 
-  visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  #visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
   #visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
-  #visualisation.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
+  visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
 

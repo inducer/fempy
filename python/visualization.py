@@ -95,25 +95,16 @@ def writeGnuplotFile( name, dof_manager, elements, solution ):
 def writeVtkFile( name, dof_manager, elements, solution ):
   import pyvtk
 
-  dof_count = dof_manager.countDegreesOfFreedom()
+  nodes,values,triangles = compileInfo( dof_manager, elements, solution )
 
-  points_list = []
-  for dof in range( 0, dof_count ):
-    points_list.append( vector2tuple (
-	dof_manager.getDegreeOfFreedomIdentifier( dof ).coordinates() ) )
+  my_nodes = []
+  for node in nodes:
+    my_nodes.append( [ node[0], node[1], 0 ] )
 
-  polygon_list = []
-  for el in elements:
-    polygon_list.append( el.nodeNumbers() )
-
-  structure = pyvtk.PolyData( points=points_list, polygons=polygon_list)
-
-  solution_list = []
-  for i in solution:
-    solution_list.append( i )
+  structure = pyvtk.PolyData( points = my_nodes, polygons = triangles)
 
   pointdata = pyvtk. PointData(
-      pyvtk. Scalars(solution_list, name="solution", lookup_table = "default") )
+      pyvtk. Scalars(values, name="solution", lookup_table = "default") )
 
   vtk = pyvtk.VtkData( structure, "FEM result", pointdata )
   vtk.tofile( name, "ascii" )

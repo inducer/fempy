@@ -9,8 +9,6 @@ import form_function
 import visualization
 
 
-
-
 class tFiniteElementError(Exception):
   def __init__( self, value ):
     self.value = value
@@ -190,23 +188,23 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions( self, builder, which_derivative = "both" ):
-    a00 = self.TransformMatrix[0,0]
-    a01 = self.TransformMatrix[0,1]
-    a10 = self.TransformMatrix[1,0]
-    a11 = self.TransformMatrix[1,1]
+    g00 = self.TransformMatrixInverse[0,0]
+    g01 = self.TransformMatrixInverse[0,1]
+    g10 = self.TransformMatrixInverse[1,0]
+    g11 = self.TransformMatrixInverse[1,1]
 
     fdxr = None;fdyr = None;fdxc = None;fdyc = None;
 
     if which_derivative == "both":
       def functionInIntegral( point ):
 	return ( \
-	  ( a00 * fdxr( point ) + a10 * fdyr( point ) ) * \
-	  ( a00 * fdxc( point ) + a10 * fdyc( point ) ) + \
-	  ( a01 * fdxr( point ) + a11 * fdyr( point ) ) * \
-	  ( a01 * fdxc( point ) + a11 * fdyc( point ) ) 
+	  ( g00 * fdxr( point ) + g10 * fdyr( point ) ) * \
+	  ( g00 * fdxc( point ) + g10 * fdyc( point ) ) + \
+	  ( g01 * fdxr( point ) + g11 * fdyr( point ) ) * \
+	  ( g01 * fdxc( point ) + g11 * fdyc( point ) ) 
 	  )
     else:
-      raise tFiniteElementError, "which_derivative != 'both' not implemented"
+      raise tFiniteElementError, "which_derivative != 'both' not implemented yet"
 
     node_count = len( self.Nodes )
     influence_matrix = num.zeros( (node_count, node_count), num.Float )
@@ -221,12 +219,9 @@ class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 	influence_matrix[column,row] = \
 	    integration.integrateFunctionOnUnitTriangle( functionInIntegral )
 
-    jacobian_det = 1/(2*self.Area)
+    jacobian_det = 2*self.Area
 
     builder.add( jacobian_det * influence_matrix, self.NodeNumbers )
-    print self.TransformMatrix
-    print influence_matrix
-    #raw_input()
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
     jacobian_det = self.Area * 2
@@ -408,7 +403,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement( tFiniteElement ):
 
 
 # distorted two-dimensional triangular finite elements ------------------------
-class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
+class tDistortedTwoDimensionalLinearTriangularFiniteElement( tDistortedTwoDimensionalTriangularFiniteElement ):
   def visualizationData( self, solution_vector ):
     return visualization.tVisualizationData( 
 	self.Nodes, 
@@ -416,28 +411,6 @@ class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFin
 	[ (0,1,2) ] )
 
 addFormFunctions( 
-  tTwoDimensionalLinearTriangularFiniteElement,
+  tDistortedTwoDimensionalLinearTriangularFiniteElement,
   form_function.makeFormFunctions( 1, [ [0,0], [1,0], [0,1] ] ),
   dimensions = 2 )
-
-
-
-
-
-class tTwoDimensionalQuadraticTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
-  def visualizationData( self, solution_vector ):
-    return visualization.tVisualizationData( 
-	self.Nodes, 
-	[ solution_vector[ n ] for n in self.NodeNumbers ],
-	[ (0,3,5), (3,1,4), (3,4,5), (5,4,2) ] )
-
-addFormFunctions( 
-  tTwoDimensionalQuadraticTriangularFiniteElement,
-  form_function.makeFormFunctions( 2, 
-    [ [0,0], [1,0], [0,1], [0.5,0], [0.5,0.5], [0,0.5] ] ),
-  dimensions = 2 )
-
-
-
-
-

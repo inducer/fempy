@@ -77,8 +77,8 @@ def simplify( expression ):
     return evaluate( expression )
 
   def simplifyPlus( x, y ):
-    x = simplify( x )
-    y = simplify( y )
+    x = simp( x )
+    y = simp( y )
 
     if x == 0:
       return y
@@ -87,8 +87,8 @@ def simplify( expression ):
     return ("+",x,y)
 
   def simplifyMinus( x, y ):
-    x = simplify( x )
-    y = simplify( y )
+    x = simp( x )
+    y = simp( y )
 
     if x == 0:
       return ("-",y)
@@ -97,8 +97,8 @@ def simplify( expression ):
     return ("-",x,y)
   
   def simplifyTimes( x, y ):
-    x = simplify( x )
-    y = simplify( y )
+    x = simp( x )
+    y = simp( y )
 
     if x == 0 or y == 0:
       return 0
@@ -109,15 +109,15 @@ def simplify( expression ):
     return ("*",x,y)
 
   def simplifyDivision( x, y ):
-    x = simplify( x )
-    y = simplify( y )
+    x = simp( x )
+    y = simp( y )
 
     if y == 1:
       return x
     return ("/",x,y)
 
   def simplifyPower( x, y ):
-    x = simplify( x )
+    x = simp( x )
 
     if y == 0:
       return 1
@@ -140,16 +140,12 @@ def simplify( expression ):
     ("/",VAR,VAR), simplifyDivision,
     # This assumes that the exponent is constant.
     ("**",VAR,VAR), simplifyPower,
-    ("-",VAR) , lambda x: ("-",simplify(x)),
+    ("-",VAR) , lambda x: ("-",simp(x)),
     ("variable",VAR), lambda x: ("variable",x),
     VAR, lambda x: x
   ]
 
-  old_expression = None
-  while old_expression != expression:
-    old_expression = expression
-    expression = simp( expression )
-  return expression
+  return simp( expression )
 
 
 
