@@ -83,7 +83,7 @@ class tFiniteElement:
     self.FormFunctionKit = form_function_kit
     self.FormFunctions = form_function_kit.formFunctions()
     self.DifferentiatedFormFunctions = form_function_kit.differentiatedFormFunctions()
-    self.Nodes = form_function_kit.getNodes(base_nodes, dof_manager)
+    self.Nodes = form_function_kit.getNodes(base_nodes, dof_manager, self)
     self.NodeNumbers = [node.Number for node in self.Nodes]
     
   def nodeNumbers(self):
@@ -210,7 +210,7 @@ class tFiniteElement:
 
 
 # Form function related -------------------------------------------------------
-class tInbetweenNode:
+class tInbetweenPoint:
   def __init__(self, node_a_index, node_b_index, numerator, denominator, tag = None):
     self.NodeAIndex = node_a_index
     self.NodeBIndex = node_b_index
@@ -218,35 +218,12 @@ class tInbetweenNode:
     self.Denominator = denominator
     self.Tag = tag
 
-  def _completeTag(self, tag_a, tag_b):
+  def completeTag(self, tag_a, tag_b):
     if self.Tag:
       return (tag_a, tag_b, self.Numerator, self.Denominator, self.Tag)
     else:
       return (tag_a, tag_b, self.Numerator, self.Denominator)
 
-  def getNode(self, base_node_list, dof_manager):
-    na = base_node_list[self.NodeAIndex]
-    nb = base_node_list[self.NodeBIndex]
-    try:
-      return dof_manager.getNodeByTag(self._completeTag(nb.Tag, na.Tag))
-    except RuntimeError:
-      coordinates = na.Coordinates + (nb.Coordinates-na.Coordinates) * \
-                    float(self.Numerator) / \
-                    float(self.Denominator)
-
-      shape_section = None
-      constraint_id = None
-      if na.ShapeSection is not None and \
-           na.ShapeSection == nb.ShapeSection and \
-           na.ShapeSection.containsPoint(coordinates):
-        shape_section = na.ShapeSection
-        constraint_id = shape_section.ConstraintId
-
-      return dof_manager.registerNode(self._completeTag(na.Tag, nb.Tag),
-                                      coordinates,
-                                      constraint_id,
-                                      shape_section
-                                      )
 
 class tFormFunctionKit:
   def __init__(self, order, points, extra_points = [], vis_segments = 1):
@@ -260,6 +237,7 @@ class tFormFunctionKit:
                         float(inbetween_node.Numerator) / \
                         float(inbetween_node.Denominator))
 
+    self._Points = points
     self._ExtraPoints = extra_points
     self._VisualizationSegments = vis_segments
     
@@ -279,10 +257,36 @@ class tFormFunctionKit:
   def differentiatedFormFunctions(self):
     return self._DifferentiatedFormFunctions
 
-  def getNodes(self, base_nodes, dof_manager):
+  def getNode(self, base_node_list, dof_manager, element, inbetween_point):
+    na = base_node_list[inbetween_point.NodeAIndex]
+    nb = base_node_list[inbetween_point.NodeBIndex]
+    try:
+      return dof_manager.getNodeByTag(inbetween_point.completeTag(nb.Tag, na.Tag))
+    except RuntimeError:
+      pa = self._Points[inbetween_point.NodeAIndex]
+      pb = self._Points[inbetween_point.NodeBIndex]
+      coordinates = element.transformToReal(pa + (pb-pa) *
+                                            float(inbetween_point.Numerator) /
+                                            float(inbetween_point.Denominator))
+
+      shape_section = None
+      constraint_id = None
+      if na.ShapeSection is not None and \
+           na.ShapeSection == nb.ShapeSection and \
+           na.ShapeSection.containsPoint(coordinates):
+        shape_section = na.ShapeSection
+        constraint_id = shape_section.ConstraintId
+
+      return dof_manager.registerNode(inbetween_point.completeTag(na.Tag, nb.Tag),
+                                      coordinates,
+                                      constraint_id,
+                                      shape_section
+                                      )
+
+  def getNodes(self, base_nodes, dof_manager, element):
     result = base_nodes + \
-             [inbetween_node.getNode(base_nodes, dof_manager) 
-              for inbetween_node in self._ExtraPoints]
+             [self.getNode(base_nodes, dof_manager, element, inbetween_point) 
+              for inbetween_point in self._ExtraPoints]
     return result
 
   def recommendNumberOfVisualizationSegments(self):
@@ -294,9 +298,9 @@ class tFormFunctionKit:
 _StandardNodes = [num.array([0,0]), num.array([1,0]), num.array([0,1])]
 LinearFormFunctionKit = tFormFunctionKit(1, _StandardNodes)
 QuadraticFormFunctionKit = tFormFunctionKit(2, _StandardNodes,
-                                            [tInbetweenNode(0, 1, 1, 2),
-                                             tInbetweenNode(1, 2, 1, 2),
-                                             tInbetweenNode(2, 0, 1, 2)],
+                                            [tInbetweenPoint(0, 1, 1, 2),
+                                             tInbetweenPoint(1, 2, 1, 2),
+                                             tInbetweenPoint(2, 0, 1, 2)],
                                             vis_segments = 4)
 
 
@@ -306,8 +310,6 @@ QuadraticFormFunctionKit = tFormFunctionKit(2, _StandardNodes,
 class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
   def __init__(self, base_nodes, dof_manager, form_function_kit):
-    tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
-
     x = [node.Coordinates[0] for node in base_nodes]
     y = [node.Coordinates[1] for node in base_nodes]
 
@@ -324,6 +326,8 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     self.Area = 0.5 * determinant
     self.InverseDeterminant = 1./determinant
+
+    tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
     
   # Tools ---------------------------------------------------------------------
   def transformToReal(self, point):
@@ -443,10 +447,10 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   # initialization ------------------------------------------------------------
   def __init__(self, base_nodes, dof_manager, form_function_kit, 
                distort_function, distort_jacobian, inverse_distort_function):
-    tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
     self.transformToReal = distort_function
     self.transformToUnit = inverse_distort_function
     self.getTransformJacobian = distort_jacobian
+    tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
 
     # verify validity
     if False:

@@ -16,6 +16,15 @@ class tReference:
 
 
 
+def delta(x, y):
+  if x == y:
+    return 1
+  else:
+    return 0
+
+
+
+
 def flatten(list):
   result = []
   for i in list:
@@ -192,3 +201,22 @@ def interpolateVectorList(vectors, inbetween_points):
     last_vector = vector
   return result
 
+
+
+
+def getGrid(origin, grid_vectors, subdivisions):
+  last_result = [origin]
+  for gv, subdivs in zip(grid_vectors, subdivisions):
+    result = []
+    for vector in last_result:
+      for j in range(subdivs+1):
+        result.append(vector + float(j)/float(subdivs) * gv)
+    last_result = result
+  return last_result
+
+
+
+
+
+
+  

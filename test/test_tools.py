@@ -48,7 +48,6 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
       return mesh,solution
 
     mesh = mesh_change.meshAfter()
-    mesh.generate()
     job.done()
 
     #job = stopwatch.tJob("adapting...")
@@ -61,9 +60,9 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
 
   
 def visualize(mesh, vector):
-  visualization.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), vector)
+  #visualization.writeMatlabFile("/tmp/visualize.m", mesh.dofManager(), mesh.elements(), vector)
   #visualization.writeGnuplotFile(",,result.dat", mesh.dofManager(), mesh.elements(), vector)
-  #visualization.writeVtkFile(",,result.vtk", ",,result_grid.vtk", mesh.dofManager(), mesh.elements(), vector)
+  visualization.writeVtkFile(",,result.vtk", ",,result_grid.vtk", mesh.dofManager(), mesh.elements(), vector)
 
 
 
@@ -77,9 +76,6 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
   grad_sol_c = expression.compileVectorField(grad_sol)
 
   # build geometry ------------------------------------------------------------
-  job = stopwatch.tJob("geometry")
-  mesh.generate()
-  job.done()
 
   eoc_rec = eoc.tEOCRecorder()
 

@@ -179,7 +179,9 @@ class tLaplacianEigenproblemSolver:
         self._SBuilder.matrix()[main_node.Number,node.Number] = factor / main_factor
     job.done()
 
-  def solve(self, sigma):
+  def solve(self, sigma, number_of_eigenvalues = 20, number_of_arnoldi_vectors = 40):
     return shiftAndInvertEigenproblem(sigma, 
                                       self._SBuilder.matrix(), 
-                                      self._MBuilder.matrix())
+                                      self._MBuilder.matrix(),
+                                      number_of_eigenvalues = number_of_eigenvalues,
+                                      number_of_arnoldi_vectors = number_of_arnoldi_vectors)

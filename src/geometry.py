@@ -5,22 +5,16 @@ import pylinear.matrices as num
 
 
 
-def getParallelogram(edge_length = 1, x_skew = 0, y_skew = 0):
+def getParallelogram(grid_vectors):
   """Returns a list of points (as tuples) that represent
   the parallelogram given by the parameters.
-  The order of the points is as follows:
-
-    10
-    23
   """
-  a = edge_length / 2.
-  xs = x_skew / 2.
-  ys = y_skew / 2.
-  return [
-    num.array([a-xs,-a+ys]), 
-    num.array([a+xs,a+ys]), 
-    num.array([-a+xs,a-ys]), 
-    num.array([-a-xs,-a-ys])]
+  gv0 = grid_vectors[0] * 0.5
+  gv1 = grid_vectors[1] * 0.5
+  return [gv0+gv1, -gv0+gv1, -gv0-gv1, gv0-gv1]
+
+
+
 
 def getCircle(radius, use_exact = True):
   sqrt2_inv = math.sqrt(2)/2 * radius
@@ -54,10 +48,16 @@ def getCircle(radius, use_exact = True):
                 use_exact_elements = use_exact),
     ]
 
-def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3, 
+
+
+
+def getUnitCellGeometry(grid_vectors, inner_radius, 
                         use_exact = True, constraint_id = "dirichlet"):
-  return [mesh.tShapeSection(getParallelogram(edge_length), constraint_id),
-          mesh.tShapeSection(getCircle(edge_length * inner_factor, use_exact), None)]
+  return [mesh.tShapeSection(getParallelogram(grid_vectors), constraint_id),
+          mesh.tShapeSection(getCircle(inner_radius, use_exact), None)]
+
+
+
 
 def getAnnulusGeometry(outer_radius, inner_radius, use_exact = True):
   return [mesh.tShapeSection(getCircle(outer_radius, use_exact), "dirichlet"),

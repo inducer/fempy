@@ -32,6 +32,60 @@ def _makeDistortedLinearElement(nodes, dof_manager):
 
 
 
+# Mesh description data structures ------------------------------------------------
+class tShapeGuide:
+  def __init__(self, deformation_coordinate, interval, expression, 
+      initial_point_count = 3, render_final_point = False, use_exact_elements = True):
+    self.DeformationCoordinate = deformation_coordinate
+    self.Interval = interval
+    self.Expression = expression
+    self.InitialPointCount = initial_point_count
+    self.RenderFinalPoint = render_final_point
+    self.UseExactElements = use_exact_elements
+
+  def evaluate(self, non_deform_coord):
+    return expression.evaluate(self.Expression, {"t": non_deform_coord })
+
+  def containsPoint(self, point, relative_threshold):
+    a,b = self.Interval
+    return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
+               point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
+
+
+
+
+class tShapeSection:
+  """Describes a closed polygon."""
+  def __init__(self, shape_guide_list, constraint_id):
+    self.ShapeGuideList = shape_guide_list
+    self.ConstraintId = constraint_id
+
+  def containsPoint(self, point, relative_threshold = 1e-10):
+    my_shape_guide_list = self.ShapeGuideList
+    # if the last element is just a point, explicitly close the
+    # polygon
+    if not isinstance(self.ShapeGuideList[-1], tShapeGuide):
+      my_shape_guide_list = self.ShapeGuideList[:] + \
+                            [self.ShapeGuideList[0]]
+
+    last_point = my_shape_guide_list[0]
+    for i in my_shape_guide_list[1:]:
+      if isinstance(i, tShapeGuide):
+        if i.containsPoint(point, relative_threshold):
+          return True
+        a,b = i.Interval
+        last_point = i.evaluate(b)
+      else:
+        dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
+        if -relative_threshold <= alpha <= 1+relative_threshold and \
+           dtl <= tools.norm2(i-last_point) * relative_threshold:
+          return True
+        last_point = i
+
+
+
+
+# Abstract mesh structures ---------------------------------------------------------
 class tMeshChange:
   def __init__(self, before, after):
     self.MeshBefore = before
@@ -88,12 +142,6 @@ class tMesh:
   def dofManager(self):
     return self.DOFManager
 
-  def generate(self):
-    """Generate the mesh from the parameters given to __init__().
-    This method may only be called once on a given instance.
-    """
-    pass
-
   def elements(self):
     return self.Elements
 
@@ -115,67 +163,28 @@ class tMesh:
 
 
 # Pyangle mesh ----------------------------------------------------------
-class tShapeGuide:
-  def __init__(self, deformation_coordinate, interval, expression, 
-      initial_point_count = 3, render_final_point = False, use_exact_elements = True):
-    self.DeformationCoordinate = deformation_coordinate
-    self.Interval = interval
-    self.Expression = expression
-    self.InitialPointCount = initial_point_count
-    self.RenderFinalPoint = render_final_point
-    self.UseExactElements = use_exact_elements
-
-  def evaluate(self, non_deform_coord):
-    return expression.evaluate(self.Expression, {"t": non_deform_coord })
-
-  def containsPoint(self, point, relative_threshold):
-    a,b = self.Interval
-    return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
-               point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
-
-
-
-
-class tShapeSection:
-  """Describes a closed polygon."""
-  def __init__(self, shape_guide_list, constraint_id):
-    self.ShapeGuideList = shape_guide_list
-    self.ConstraintId = constraint_id
-
-  def containsPoint(self, point, relative_threshold = 1e-10):
-    my_shape_guide_list = self.ShapeGuideList
-    # if the last element is just a point, explicitly close the
-    # polygon
-    if not isinstance(self.ShapeGuideList[-1], tShapeGuide):
-      my_shape_guide_list = self.ShapeGuideList[:] + \
-                            [self.ShapeGuideList[0]]
-
-    last_point = my_shape_guide_list[0]
-    for i in my_shape_guide_list[1:]:
-      if isinstance(i, tShapeGuide):
-        if i.containsPoint(point, relative_threshold):
-          return True
-        a,b = i.Interval
-        last_point = i.evaluate(b)
-      else:
-        dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
-        if -relative_threshold <= alpha <= 1+relative_threshold and \
-           dtl <= tools.norm2(i-last_point) * relative_threshold:
-          return True
-        last_point = i
-
-
-
-
 class _tPyangleMesh(tMesh):
   """This is an internal class.
   Do not use from the outside.
   """
-  def __init__(self, input_p, order, shape_sections):
+  def __init__(self, generating_parameters, order, shape_sections):
     tMesh.__init__(self)
+    self.GeneratingParameters = generating_parameters
     self.Order = order
-    self.InputParameters = input_p
     self.ShapeSections = shape_sections
+    self.__postprocessTriangleOutput__(generating_parameters)
+
+  def __getstate__(self):
+    my_dict = self.__dict__.copy()
+    del my_dict["Elements"]
+    del my_dict["DOFManager"]
+    del my_dict["ElementFinder"]
+    return my_dict
+
+  def __setstate__(self, my_dict):
+    tMesh.__init__(self)
+    self.__dict__.update(my_dict)
+    self.__postprocessTriangleOutput__(self.GeneratingParameters)
 
   def findShapeGuideNumber(self, number):
     if number == 0:
@@ -204,10 +213,9 @@ class _tPyangleMesh(tMesh):
   def dimensions(self):
     return 2
 
-  def _postprocessTriangleOutput(self, out_p):
+  def __postprocessTriangleOutput__(self, out_p):
     pts = out_p.Points
     tris = out_p.Triangles
-
 
     # read and reposition nodes -----------------------------------------------
     for no in range(pts.size()):
@@ -389,10 +397,9 @@ class _tPyangleMesh(tMesh):
           inv_func))
 
     self.Elements = elements
-    self.LastOutputParameters = out_p
 
   def getRefinement(self, element_needs_refining):
-    input_p = self.LastOutputParameters.copy()
+    input_p = self.GeneratingParameters.copy()
     
     input_p.TriangleAreas.setup()
     marked_elements = 0
@@ -424,8 +431,6 @@ class tTwoDimensionalMesh(_tPyangleMesh):
     segments = []
     segment_markers = []
 
-    points_file = file(",,points.data", "w")
-
     shape_guide_index = 1
     for section in shape_sections:
       section_start_point_index = len(points)
@@ -445,7 +450,6 @@ class tTwoDimensionalMesh(_tPyangleMesh):
             else:
               pt[1-c] = a + pt_idx * h
             pt[c] = expression.evaluate(shape.Expression, {"t": pt[1-c]})
-            points_file.write("%f\t%f\n" % (pt[0], pt[1]))
             segments.append((len(points), len(points) + 1))
             points.append(pt)
             if pt_idx == shape.InitialPointCount:
@@ -469,35 +473,15 @@ class tTwoDimensionalMesh(_tPyangleMesh):
     pyangle.setPoints(input_p, points, point_markers)
     pyangle.setSegments(input_p, segments, segment_markers)
     pyangle.setHoles(input_p, hole_starts)
-    _tPyangleMesh.__init__(self, input_p, order, shape_sections)
-
-    self.RefinementFunction = refinement_func
-
-  def generate(self):
-    if self.Elements:
-      raise RuntimeError, "generate() may not be called twice"
-
-    self._postprocessTriangleOutput(
-      pyangle.triangulate(self.InputParameters, refinement_func = self.RefinementFunction))
-
-    # The refinement function may carry expensive references to other
-    # meshes. We should not depend on its presence any longer 
-    # than necessary.
-    del self.RefinementFunction
+    _tPyangleMesh.__init__(self, pyangle.triangulate(input_p, refinement_func = refinement_func), order, shape_sections)
 
 
 
 
 class _tTwoDimensionalRefinedMesh(_tPyangleMesh):
   def __init__(self, input_p, order, shape_sections):
-    _tPyangleMesh.__init__(self, input_p, order, shape_sections)
+    _tPyangleMesh.__init__(self, pyangle.refine(input_p), order, shape_sections)
 
-  def generate(self):
-    if self.Elements:
-      raise RuntimeError, "generate() may not be called twice"
-
-    self._postprocessTriangleOutput(pyangle.refine(self.InputParameters))
-    del self.InputParameters
 
 
 
