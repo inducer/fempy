@@ -304,7 +304,7 @@ class tTwoDimensionalSimplicalMesh(_tPyangleSimplicalMesh):
     else:
       real_shape_points = shape_points
       point_markers = [1] * len(shape_points)
-      segment_markers = [1] * len(realshape_points)
+      segment_markers = [1] * len(real_shape_points)
 
     input_p = pyangle.tTriangulationParameters()
     pyangle.addPoints(input_p, real_shape_points, point_markers)
@@ -341,7 +341,7 @@ class _tTwoDimensionalSimplicalRefinedMesh(_tPyangleSimplicalMesh):
     if self.Nodes:
       raise RuntimeError, "generate() may not be called twice"
 
-    self._postprocessTriangleOutput(pyangle.refine(self.InputParameters))
+    self._postprocessTriangleOutput(pyangle.refine(self.InputParameters, verbose = True))
     del self.InputParameters
 
 
@@ -464,8 +464,11 @@ class _tPyangleExactMesh(tMesh):
                                              expr_linear_transform[deform_coord])
                                         ("*", expr_alpha, expr_deform))
 
-        # compose inverse function
+        # compose inverse nonlinear transform
         deformed_coordinate_function = expression.compileScalarField(expr_transform[deform_coord])
+        deformed_coordinate_function_prime = expression.compileScalarField(
+          expression.simplify(
+          expression.differentiate(expr_transform[deform_coord], "%d" % deform_coord)))
         non_deform_matrix_inverse = matinv[non_deform_coord]
         
         def inv_func(point):
@@ -475,25 +478,16 @@ class _tPyangleExactMesh(tMesh):
             my_point = num.zeros((2,), num.Float)
             my_point[deform_coord] = deform_value
             my_point[non_deform_coord] = non_deform_value
-            return deformed_coordinate_function(my_point)[deform_coord] - target_value
+            return deformed_coordinate_function(my_point) - target_value
           def newton_func_prime(deform_value):
-            # NYI
+            my_point = num.zeros((2,), num.Float)
+            my_point[deform_coord] = deform_value
+            my_point[non_deform_coord] = non_deform_value
+            return deformed_coordinate_function_prime(my_point)
           return tools.findZeroByNewton(newton_func, newton_func_prime, point[deform_coord])
 
         return element.tDistortedTwoDimensionalLinearTriangularFiniteElement(
           nodes, expr_transform, inv_func, dof_manager)
-
-
-
-
-
-
-
-
-
-
-
-
       elif len(guided_nodes) == 3:
         # more than one edge is guided
         raise RuntimeError, "More than one edge is guided. This is currently unsupported."

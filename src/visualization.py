@@ -1,4 +1,5 @@
 import pylinear.matrices as num
+import tools
 
 
 
@@ -38,13 +39,13 @@ class tVisualizationData:
 
 
 
-def compileInfo(dof_manager, elements, solution):
+def compileInfo(dof_manager, elements, node_data):
   node_number_map = {}
   nodes = []
   values = []
   tris = []
   for el in elements:
-    data = el.visualizationData(solution)
+    data = el.visualizationData(node_data)
     local_nodes = {}
 
     index = 0
@@ -73,7 +74,7 @@ def compileInfo(dof_manager, elements, solution):
 
 
 
-def writeGnuplotFile(name, dof_manager, elements, solution):
+def writeGnuplotFile(name, dof_manager, elements, node_data):
   gnuplot_file = file(name, "w")
 
   def writeNode(node):
@@ -82,7 +83,7 @@ def writeGnuplotFile(name, dof_manager, elements, solution):
 	nodes[node][1],
 	values[node]))
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
+  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
   for tri_nodes in triangles:
     for node in tri_nodes:
       writeNode(node)
@@ -92,10 +93,10 @@ def writeGnuplotFile(name, dof_manager, elements, solution):
 
 
 
-def writeVtkFile(name, dof_manager, elements, solution):
+def writeVtkFile(name, dof_manager, elements, node_data):
   import pyvtk
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
+  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
 
   my_nodes = []
   for node in nodes:
@@ -104,7 +105,7 @@ def writeVtkFile(name, dof_manager, elements, solution):
   structure = pyvtk.PolyData(points = my_nodes, polygons = triangles)
 
   pointdata = pyvtk. PointData(
-      pyvtk. Scalars(values, name="solution", lookup_table = "default"))
+      pyvtk. Scalars(values, name="node_data", lookup_table = "default"))
 
   vtk = pyvtk.VtkData(structure, "FEM result", pointdata)
   vtk.tofile(name, "ascii")
@@ -112,7 +113,7 @@ def writeVtkFile(name, dof_manager, elements, solution):
 
 
 
-def writeMatlabFile(name, dof_manager, elements, solution):
+def writeMatlabFile(name, dof_manager, elements, node_data):
   m_file = file(name, "w")
 
   def writeMatlabVector(name, data):
@@ -139,7 +140,7 @@ def writeMatlabFile(name, dof_manager, elements, solution):
 	    m_file.write("%f" % data[ i,j ])
     m_file.write("];\n")
 
-  nodes,values,triangles = compileInfo(dof_manager, elements, solution)
+  nodes,values,triangles = compileInfo(dof_manager, elements, node_data)
 
   coords = num.array(nodes)
 
@@ -149,14 +150,33 @@ def writeMatlabFile(name, dof_manager, elements, solution):
   writeMatlabVector("x", x)
   writeMatlabVector("y", y)
 	  
-  writeMatlabVector("solution", num.array(values))
+  writeMatlabVector("node_data", num.array(values))
 
   tris = num.array([ [a+1,b+1,c+1] for (a,b,c) in triangles ])
 
   writeMatlabMatrix("tris", tris) 
 
-  m_file.write("trisurf(tris, x, y, solution)")
+  m_file.write("trisurf(tris, x, y, node_data)")
 
+
+
+
+
+def visualizePerElementData(name, visualizer, mesh, func_on_elements):
+  node_to_element_hash = {}
+  for el in mesh.elements():
+    for node in el.nodes():
+      try:
+        node_to_element_hash[node].append(el)
+      except KeyError:
+        node_to_element_hash[node] = [el]
+  
+  dof_count = mesh.dofManager().countDegreesOfFreedom()
+  node_data = num.zeros((dof_count,), num.Float)
+  for node_number in range(dof_count):
+    node = mesh.dofManager().getDegreeOfFreedomIdentifier(node_number)
+    node_data[node_number] = sum(map(func_on_elements, node_to_element_hash[node]))
+  visualizer(name, mesh.dofManager(), mesh.elements(), node_data)
 
 
 

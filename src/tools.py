@@ -4,6 +4,17 @@ import math
 
 
 
+class tReference:
+  def __init__( self, value ):
+    self.V = value
+  def get( self ):
+    return self.V
+  def set( self, value ):
+    self.V = value
+
+
+
+
 def flatten(list):
   result = []
   for i in list:
@@ -61,4 +72,5 @@ def findZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
 
 
 
-
+def average(sequence):
+  return sum(sequence)/float(len(sequence))
