@@ -37,7 +37,7 @@ class tFiniteElement:
   given indirectly through a tMatrixBuilder."""
   def __init__(self, nodes, dof_manager):
     self.Nodes = nodes
-    self.NodeNumbers = map(dof_manager.getDegreeOfFreedomNumber, self.Nodes)
+    self.NodeNumbers = map(dof_manager.registerDegreeOfFreedomNumber, self.Nodes)
 
   def nodes(self):
     return self.Nodes

@@ -8,7 +8,7 @@ class tDOFManager:
     self.IdentifierToNumber = { }
     self.NumberToIdentifier = [ ]
 
-  def getDegreeOfFreedomNumber(self, identifier):
+  def registerDegreeOfFreedomNumber(self, identifier):
     if identifier in self.IdentifierToNumber:
       return self.IdentifierToNumber[ identifier ]
     else:
@@ -16,6 +16,12 @@ class tDOFManager:
       self.IdentifierToNumber[ identifier ] = new_dof_id
       self.NumberToIdentifier.append(identifier)
       return new_dof_id
+
+  def getDegreeOfFreedomNumber(self, identifier):
+    try:
+      return self.IdentifierToNumber[ identifier ]
+    except KeyError:
+      raise RuntimeError, "Attempted to get a non-registered degree of freedom"
 
   def getDegreeOfFreedomIdentifier(self, number):
     return self.NumberToIdentifier[ number ]

@@ -208,7 +208,12 @@ class tRectangularMesh(tMesh):
 
 
 
-class tPyangleGeneratedMesh(tMesh):
+class _tPyangleGeneratedMesh(tMesh):
+  def __init__(self, order, input_p):
+    tMesh.__init__(self)
+    self.Order = order
+    self.InputParameters = input_p
+
   def _postprocessTriangleOutput(self, out_p):
     pts = out_p.Points
     tris = out_p.Triangles
@@ -249,64 +254,78 @@ class tPyangleGeneratedMesh(tMesh):
     # find boundary nodes -----------------------------------------------------
     self.BoundaryNodes = []
     for i in range(out_p.PointMarkers.size()):
-      if out_p.PointMarkers.get(i):
+      if out_p.PointMarkers.get(i) == 1:
         self.BoundaryNodes.append(nodes[i])
 
     self.LastOutputParameters = out_p
 
   def getRefinement(self, element_needs_refining):
-    in_p = self.LastOutputParameters.copy()
+    input_p = self.LastOutputParameters.copy()
     
+    input_p.TriangleAreas.setup()
+    marked_elements = 0
     for i, el in zip(range(len(self.Elements)), self.Elements):
       if element_needs_refining(el):
-        in_p.TriangleAreas.set(i, el.area() * 0.3333)
+        input_p.TriangleAreas.set(i, el.area() * 0.3)
+        marked_elements += 1
+      else:
+        input_p.TriangleAreas.set(i, -1)
 
-    print "FIXME: have a look a the area constraint array"
-    raw_input()
+    if marked_elements == 0:
+      raise RuntimeError, "No elements marked for refinement."
 
-    return tMeshChange(self, _tTwoDimensionalShapedRefinedMesh(self.Order, in_p))
-
-
+    return tMeshChange(self, _tTwoDimensionalShapedRefinedMesh(self.Order, input_p))
 
 
-class tTwoDimensionalShapedMesh(tPyangleGeneratedMesh):
-  def __init__(self, shape_points, order = 1, refinement_func = None):
-    tMesh.__init__(self)
-    self.ShapePoints = shape_points
-    self.Order = order
+
+
+class tTwoDimensionalShapedMesh(_tPyangleGeneratedMesh):
+  def __init__(self, shape_points, inner_shape_points = [], hole_starts = [], order = 1, refinement_func = None):
+    if inner_shape_points:
+      real_shape_points = shape_points + [shape_points[0]] + \
+        inner_shape_points + [inner_shape_points[0]]
+      point_markers = [1] * (len(shape_points)+1) + [2] * (len(inner_shape_points) + 1)
+      segment_markers = [1] * (len(shape_points) - 1) + [2] * (len(real_shape_points)-len(shape_points)+1)
+    else:
+      real_shape_points = shape_points
+      point_markers = [1] * len(shape_points)
+      segment_markers = [1] * len(realshape_points)
+
+    input_p = pyangle.tTriangulationParameters()
+    pyangle.addPoints(input_p, real_shape_points, point_markers)
+    pyangle.addSegments(input_p, len(real_shape_points), segment_markers)
+    pyangle.addHoles(input_p, hole_starts)
+
+    _tPyangleGeneratedMesh.__init__(self, order, input_p)
     self.RefinementFunction = refinement_func
 
   def generate(self):
     if self.Nodes:
       raise RuntimeError, "generate() may not be called twice"
 
-    out_p = pyangle.triangulateArea(self.ShapePoints, 
-      refinement_func = self.RefinementFunction)
+    self._postprocessTriangleOutput(
+      pyangle.triangulate(self.InputParameters, refinement_func = self.RefinementFunction))
+
+    #pyangle.writeGnuplotMesh(",,mesh.data", out_p)
 
     # The refinement function may carry expensive references to other
     # meshes. We should not depend on its presence any longer 
     # than necessary.
     del self.RefinementFunction
-    
-    self._postprocessTriangleOutput(out_p)
 
 
 
 
-class _tTwoDimensionalShapedRefinedMesh(tPyangleGeneratedMesh):
-  def __init__(self, order, in_p):
-    tMesh.__init__(self)
-    self.Order = order
-    self.InputParameters = in_p
+class _tTwoDimensionalShapedRefinedMesh(_tPyangleGeneratedMesh):
+  def __init__(self, order, input_p):
+    _tPyangleGeneratedMesh.__init__(self, order, input_p)
 
   def generate(self):
     if self.Nodes:
       raise RuntimeError, "generate() may not be called twice"
 
-    out_p = pyangle.refine(self.InputParameters)
+    self._postprocessTriangleOutput(pyangle.refine(self.InputParameters))
     del self.InputParameters
-
-    self._postprocessTriangleOutput(out_p)
 
 
 

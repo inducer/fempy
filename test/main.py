@@ -72,6 +72,39 @@ def solveAdaptively(mesh, solve, element_needs_refining, iteration_limit = None)
 
 
   
+def getParallelogram(edge_length = 1, x_skew = 0, y_skew = 0):
+  """Returns a list of points (as tuples) that represent
+  the parallelogram given by the parameters.
+  The order of the points is as follows:
+
+    10
+    23
+  """
+  a = edge_length / 2.
+  xs = x_skew / 2.
+  ys = y_skew / 2.
+  return [(a+xs,a+ys), (-a+xs,a-ys), (-a-xs,-a-ys), (a-xs,-a+ys)]
+
+def getCircle(radius, segments):
+  """The returned circle has beginning and end in the positive x
+  direction.
+  """
+  result = []
+  h = (2*math.pi) / segments
+  inc = 0
+  for i in range(segments):
+    result.append((radius * math.cos(inc), radius * math.sin(inc)))
+    inc += h
+  return result
+
+def getUnitCellGeometry(radius, segments = 50):
+  return \
+    [(radius/2.,0)] + getParallelogram(radius) + [(radius/2.,0)], \
+    getCircle(radius * 0.3, segments)
+
+
+
+
 def adaptiveDemo():
   a = 5
 
@@ -88,10 +121,9 @@ def adaptiveDemo():
     return math.sin(a * x**2 * y** 2)
 
   job = tJob("geometry")
-  #boundary = [(0,0), (0,1), (1,1), (1,0)] # square
-  boundary = [(0,0), (1,0), (2,1), (1,1)] # parallelogram
   
-  mesh = tTwoDimensionalShapedMesh(boundary)
+  boundary, inner_boundary = getUnitCellGeometry(radius = 2)
+  mesh = tTwoDimensionalShapedMesh(boundary, inner_boundary)
   mesh.generate()
   job.done()
 
@@ -107,12 +139,14 @@ def adaptiveDemo():
     my_estimator = error_estimator.tAnalyticSolutionL2ErrorEstimator(
       new_mesh, solution_vector, solution)
 
-    max_error = max(map(my_estimator, new_mesh.elements()))
+    errors = map(my_estimator, new_mesh.elements())
+    errors.sort()
+    max_error = errors[int(len(errors) * 0.9)]
     eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError())
     return (my_estimator, max_error), solution_vector
 
   def decideOnRefinement((error_estimator, max_error), element):
-    return error_estimator(element) > 0.5 * max_error
+    return error_estimator(element) >= max_error
 
   new_mesh, solution_vector = solveAdaptively(mesh, solve, decideOnRefinement, 10)
   print "Converged with order:", eoc_rec.estimateOrderOfConvergence()[0,1]

@@ -7,6 +7,29 @@ import visualization
 
 
 
+def solveSPDSystem(matrix_op, rhs, start_vector = None):
+  h,w = matrix_op.shape
+  if start_vector is None:
+    x = num.zeros((w,), num.Float)
+  else:
+    x = start_vector[:]
+
+  job = tJob("solve")
+  matrix_inv_op = algo.makeCGMatrixOperator(matrix_op, h * 2)
+  matrix_inv_op.apply(rhs, x)
+  job.done()
+  print "  iter:", matrix_inv_op.last_iteration_count
+
+  residual = x.copy()
+  matrix_op.apply(x, residual)
+  residual -= rhs
+
+  print "  absolute residual: ", norm2(residual)
+  return x
+
+
+
+
 def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = None):
   """Solve the Poisson equation
 
@@ -49,21 +72,6 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)
-  s_inv_op = algo.makeCGMatrixOperator(s_op, dof_count)
 
-  if start_vector is None:
-    x = num.zeros((dof_count,), num.Float)
-  else:
-    x = start_vector[:]
-
-  job = tJob("solve")
-  s_inv_op.apply(negated_b, x)
-  job.done()
-  print "  iter:", s_inv_op.last_iteration_count
-
-  residual = num.matrixmultiply(compiled_s, x) - b_mat
-
-  print "  absolute residual: ", norm2(residual)
-
-  return x
+  return solveSPDSystem(s_op, negated_b)
 
