@@ -411,6 +411,34 @@ class tSparseVector(tDictionaryWithDefault):
 
 
 
+class tLinearSystemOfEquations:
+    def __init__(self):
+        self.Equations = []
+        self.SymbolMap = {}
+        pass
+
+    def registerEquation(self, coeffs_and_symbols, rhs):
+        self.Equations.append(([
+            (coeff, self.SymbolMap.setdefault(symbol, len(self.SymbolMap)))
+            for coeff, symbol 
+            ], rhs))
+
+    def solve(self, typecode = num.Float):
+        m = num.zeros((len(self.Equations), len(self.SymbolMap)), typecode)
+        rhs = num.zeros((len(self.SymbolMap),), typecode)
+        for i, (eq, rhs) in enumerate(self.Equations):
+            for coeff, j in eq:
+                m[i,j] = coeff
+            rhs[i] = rhs
+        sol = la.solve_linear_equations(m, rhs)
+        result = {}
+        for sym, index in self.SymbolMap.iteritems():
+            result[sym] = sol[index]
+        return result
+
+
+
+
 # Generic utilities ----------------------------------------------------------
 def flatten(list):
     result = []
@@ -538,7 +566,6 @@ def writeMatrixAsCSV(filename, matrix):
 def enumerateBasicDirections(dimensions):
     coordinate_list = [[0], [1], [-1]]
     return reduce(cartesianProductSum, [coordinate_list] * dimensions)[1:]
-
 
 
 
