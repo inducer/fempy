@@ -53,13 +53,6 @@ class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
     self.AnalyticSolution = analytic_solution
     self.GradAnalyticSolution = grad_analytic_solution
 
-    dims = mesh.dimensions()
-    self.UnitVectors = []
-    for i in range(dims):
-      vec = num.zeros((dims,), num.Float)
-      vec[i] = 1
-      self.UnitVectors.append(vec)
-
   def _getEstimate(self, element):
     def errorFunctionH1(point, solution_func_value):
       real_point = element.transformToReal(point)
@@ -75,6 +68,31 @@ class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
     approx_grad_solution = element.getFormFunctionCombinationGradient(node_values)
 
     return element.getVolumeIntegralOver(errorFunctionH1, node_values)
+
+
+
+
+class tAnalyticSolutionH1HalfNormErrorEstimator(tErrorEstimator):
+  def __init__(self, mesh, computed_solution, analytic_solution, grad_analytic_solution):
+    tErrorEstimator.__init__(self, mesh, computed_solution)
+    self.AnalyticSolution = analytic_solution
+    self.GradAnalyticSolution = grad_analytic_solution
+
+  def _getEstimate(self, element):
+    def errorFunctionH1(point, solution_func_value):
+      real_point = element.transformToReal(point)
+      xf_jac = element.getTransformJacobian(point)
+      xf_jac_det = la.determinant(xf_jac)
+      xf_jac_inv = la.inverse(xf_jac)
+      twisted_grad = num.matrixmultiply(num.transpose(xf_jac_inv), approx_grad_solution(point))
+
+      return xf_jac_det * tools.norm2squared(twisted_grad-self.GradAnalyticSolution(real_point)))
+
+    node_values = num.take(self.Solution, element.nodeNumbers())
+    approx_grad_solution = element.getFormFunctionCombinationGradient(node_values)
+
+    return element.getVolumeIntegralOver(errorFunctionH1, node_values)
+
 
 
 

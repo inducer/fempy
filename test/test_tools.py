@@ -110,7 +110,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       else:
         return 0
 
-    eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError())
+    eoc_rec.addDataPoint(len(new_mesh.elements())**0.5, my_estimator.estimateTotalError()**0.5)
     job.done()
 
     it_number.set(it_number.get() + 1)

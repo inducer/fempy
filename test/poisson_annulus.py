@@ -19,6 +19,6 @@ expr_r = ("**", expr_r_squared, 0.5)
 sol = ("+", ("*", c1, ("log", expr_r)), c2)
 
 mesh = fempy.mesh.tTwoDimensionalMesh(
-  fempy.geometry.getAnnulusGeometry(5, 0.1, use_exact = False), 
+  fempy.geometry.getAnnulusGeometry(5, 0.1, use_exact = True), 
   hole_starts = [(0,0)])
-test_tools.adaptiveDemo(sol, mesh, max_iterations = 15)
+test_tools.adaptiveDemo(sol, mesh, max_iterations = 6)
