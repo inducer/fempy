@@ -6,6 +6,7 @@ import fempy
 import fempy.mesh
 import fempy.geometry
 import fempy.expression as expression
+import fempy.expression_operators as eo
 
 import test_tools
 
@@ -17,11 +18,11 @@ import test_tools
 case = "zero_boundary"
 
 if case == "zero_boundary":
-  expr_x = ("-", 1, ("**",("variable","0"), 2))
-  expr_y = ("-", 1, ("**",("variable","1"), 2))
-  sol = ("*",expr_x, expr_y)
+  expr_x = (eo.MINUS, 1, (eo.POWER,(eo.VARIABLE,"0"), 2))
+  expr_y = (eo.MINUS, 1, (eo.POWER,(eo.VARIABLE,"1"), 2))
+  sol = (eo.TIMES,expr_x, expr_y)
 elif case == "constant_rhs":
-  sol = ("+", ("**", ("variable","0"), 2), ("**", ("variable", "1"), 2)) 
+  sol = (eo.PLUS, (eo.POWER, (eo.VARIABLE,"0"), 2), (eo.POWER, (eo.VARIABLE, "1"), 2)) 
 
 grid_vectors = [num.array([2,0], num.Float),
                 num.array([0,2], num.Float)]
