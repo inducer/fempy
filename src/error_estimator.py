@@ -1,5 +1,7 @@
 import pylinear.matrices as num
+import pylinear.linear_algebra as la
 import math
+import tools
 
 
 
@@ -37,7 +39,7 @@ class tAnalyticSolutionL2ErrorEstimator(tErrorEstimator):
 
   def _getEstimate(self, element):
     def errorFunctionL2(point, solution_func_value):
-      return (self.AnalyticSolution(point) - solution_func_value) ** 2
+      return (self.AnalyticSolution(element.transformToReal(point)) - solution_func_value) ** 2
 
     node_values = num.take(self.Solution, element.nodeNumbers())
     return element.getVolumeIntegralOver(errorFunctionL2, node_values)
@@ -59,23 +61,23 @@ class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
       self.UnitVectors.append(vec)
 
   def _getEstimate(self, element):
-    def approxFirstDerivative(f, point, direction):
-      print point, direction
-      # centered difference
-      return (f(point + scale * direction) - f(point - scale * direction)) / (2 * scale)
-
-    # This is incredibly slow. But who cares.
-    approx_solution = element.getSolutionFunction(self.Solution)
-    scale = math.sqrt(element.area()) * 0.01
-
     def errorFunctionH1(point, solution_func_value):
-      approx_solution_diff = [approxFirstDerivative(approx_solution, point, vec) 
-        for vec in self.UnitVectors]
-      return (self.AnalyticSolution(point) - solution_func_value) ** 2 \
-        + sum([(ana_diff(point) - approx_diff)**2 for ana_diff, approx_diff in 
-            zip(self.GradAnalyticSolution, approx_solution_diff)])
+      real_point = element.transformToReal(point)
+      xf_jac = element.getTransformJacobian(point)
+      xf_jac_det = la.determinant(xf_jac)
+      xf_jac_inv = la.inverse(xf_jac)
+      twisted_grad = num.matrixmultiply(num.transpose(xf_jac_inv), approx_grad_solution(point))
+
+      print "twisted:", twisted_grad
+      print "exact:", self.GradAnalyticSolution(real_point)
+      raw_input()
+
+      return xf_jac_det * ((self.AnalyticSolution(real_point) - solution_func_value) ** 2 \
+        + tools.norm2squared(twisted_grad-self.GradAnalyticSolution(real_point)))
 
     node_values = num.take(self.Solution, element.nodeNumbers())
+    approx_grad_solution = element.getFormFunctionCombinationGradient(node_values)
+
     return element.getVolumeIntegralOver(errorFunctionH1, node_values)
 
 

@@ -36,6 +36,12 @@ def writeMatrixAsCSV(filename, matrix):
 
 
 
+def norm2squared(vector):
+  return num.innerproduct(vector, vector)
+
+
+
+
 def norm2(vector):
   return math.sqrt(num.innerproduct(vector, vector))
 

@@ -97,9 +97,9 @@ def getCircle(radius, segments):
     inc += h
   return result
 
-def getUnitCellGeometry(radius, segments = 50, inner_factor = 0.3):
-  return [tShapeSection(getParallelogram(radius), True),
-          tShapeSection(getCircle(radius * inner_factor, segments), False)]
+def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3):
+  return [tShapeSection(getParallelogram(edge_length), True),
+          tShapeSection(getCircle(edge_length * inner_factor, segments), False)]
 
 def getExactCircle(radius):
   sqrt2_inv = math.sqrt(2)/2 * radius
@@ -142,7 +142,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   sol_c = expression.compileScalarField(expr)
   grad_sol = expression.grad(expr, ["0", "1"])
-  grad_sol_c = [expression.compileScalarField(expression.simplify(x)) for x in grad_sol]
+  grad_sol_c = expression.compileVectorField(grad_sol)
 
   # build geometry ------------------------------------------------------------
   job = tJob("geometry")
@@ -162,8 +162,8 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       rhs_c, sol_c, start_solution_vector)
 
     job = tJob("error")
-    my_estimator = error_estimator.tAnalyticSolutionL2ErrorEstimator(
-      new_mesh, solution_vector, sol_c)
+    my_estimator = error_estimator.tAnalyticSolutionH1ErrorEstimator(
+      new_mesh, solution_vector, sol_c, grad_sol_c)
 
     errors = map(my_estimator, new_mesh.elements())
     worst_error = max(errors)
@@ -199,8 +199,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
 
 sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
-mesh = tTwoDimensionalMesh(getExactUnitCellGeometry(edge_length = 2))
-#mesh = tTwoDimensionalSimplicalMesh(getParallelogram(2,0.2), [])
+mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 2))
 adaptiveDemo(sol, mesh, max_iterations = 6)
 
 def doProfile():
