@@ -195,6 +195,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     point_minus_origin = point - self.Nodes[0].coordinates()
     barycentric = num.matrixmultiply(self.TransformMatrixInverse, point_minus_origin)
     # check if point is in
+    # FIXME: This doesn't work in Pylinear.
     return num.alltrue(barycentric >= 0) and sum(barycentric) < 1
 
   # tFiniteElement interface --------------------------------------------------
@@ -230,11 +231,11 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     jacobian_det = 2*self.Area
 
-    builder.add(jacobian_det * influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(jacobian_det * influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunctions(self, builder):
     jacobian_det = self.Area * 2
-    builder.add(jacobian_det * self.FormFunctionCrossIntegrals, 
+    builder.addScatteredSymmetric(jacobian_det * self.FormFunctionCrossIntegrals, 
 	self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
@@ -248,7 +249,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
       influences[i] = jacobian_det * integration.integrateFunctionOnUnitTriangle(
         lambda point: f(self.transformToReal(point) , ff( point)))
 
-    builder.add(influences, self.NodeNumbers)
+    builder.addScattered(influences, self.NodeNumbers)
 
   def getVolumeIntegralOver(self, f, coefficients):
     jacobian_det = self.Area * 2
@@ -352,12 +353,6 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
         [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
     assert max(inverse_norms) < 1e-11
     
-  # internal helpers ----------------------------------------------------------
-  def transformToReal(self, point):
-    return num.matrixmultiply(self.TransformMatrix, point) + self.Origin
-  def transformToUnit(self, point):
-    return num.matrixmultiply(self.TransformMatrixInverse, point - self.Origin)
-
   # external tools ------------------------------------------------------------
   def boundingBox(self):
     # FIXME: this might be wrong
@@ -365,11 +360,8 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
-    # convert point to barycentric
-    point_minus_origin = point - self.Nodes[0].coordinates()
-    barycentric = num.matrixmultiply(self.TransformMatrixInverse, point_minus_origin)
-    # check if point is in
-    return num.alltrue(barycentric >= 0) and sum(barycentric) < 1
+    # FIXME
+    raise RuntimeError, "unimplemented"
 
   # tFiniteElement interface --------------------------------------------------
   def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
@@ -402,7 +394,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
-    builder.add(influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunctions(self, builder):
     def functionInIntegral(point):
@@ -421,7 +413,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
-    builder.add(influence_matrix, self.NodeNumbers)
+    builder.addScattered(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
     n = self.FormFunctionCount
@@ -435,7 +427,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
       ff = self.FormFunctions[i]
       influences[i] = integration.integrateFunctionOnUnitTriangle(functionInIntegral)
 
-    builder.add(influences, self.NodeNumbers)
+    builder.addScattered(influences, self.NodeNumbers)
 
   def getSolutionFunction(self, solution_vector):
     node_values = num.take(solution_vector, self.NodeNumbers)

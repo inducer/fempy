@@ -14,11 +14,11 @@ def doBoxesIntersect((bl1,tr1), (bl2,tr2)):
 
 
 
-def getElementsBoundingBox(elements):
+def _getElementsBoundingBox(elements):
   if len(elements) == 0:
     raise RuntimeError, "Cannot get the bounding box of no elements."
 
-  bboxes = [ el.boundingBox() for el in elements ]
+  bboxes = [ box for el,box in elements ]
   bottom_lefts = [ bl for bl,tr in bboxes ]
   top_rights = [ tr for bl,tr in bboxes ]
   return reduce(num.minimum, bottom_lefts), reduce(num.maximum, top_rights)
@@ -70,7 +70,7 @@ class tSpatialBinaryTreeBucket:
   def topRight(self):
     return self.TopRight
 
-  def addElement(self, element):
+  def addElement(self, element, bbox):
     (dimensions,) = self.BottomLeft.shape
     if self.Buckets is None:
       # No subdivisions yet.
@@ -80,25 +80,24 @@ class tSpatialBinaryTreeBucket:
 	self.Buckets = makeBuckets(self.BottomLeft, self.TopRight, 
 	  self.AllBuckets)
 
-	for el in self.Elements:
-	  self.insertIntoSubdivision(el)
+	for el, bbox in self.Elements:
+	  self.insertIntoSubdivision(el, bbox)
 	
 	# Free up some memory
 	del self.Elements
 
-	self.insertIntoSubdivision(element)
+	self.insertIntoSubdivision(element, bbox)
       else:
 	# Simple:
-	self.Elements.append(element)
+	self.Elements.append((element, bbox))
     else:
-      self.insertIntoSubdivision(element)
+      self.insertIntoSubdivision(element, bbox)
 
-  def insertIntoSubdivision(self, element):
+  def insertIntoSubdivision(self, element, bbox):
     # Surprisingly, this can't be done much faster.
-    bbox = element.boundingBox()
     for bucket in self.AllBuckets:
       if doBoxesIntersect((bucket.bottomLeft(), bucket.topRight()), bbox):
-	bucket.addElement(element)
+	bucket.addElement(element, bbox)
 
   def findElement(self, point):
     if self.Buckets:
@@ -133,10 +132,11 @@ class tSpatialBinaryTreeBucket:
 
 
 def buildSpatialBinaryTree(elements):
-  bottom_left,top_right = getElementsBoundingBox(elements)
+  elements_with_boxes = map(lambda el: (el, el.boundingBox()), elements)
+  bottom_left,top_right = _getElementsBoundingBox(elements_with_boxes)
   bucket = tSpatialBinaryTreeBucket(bottom_left, top_right)
-  for el in elements:
-    bucket.addElement(el)
+  for el, bbox in elements_with_boxes:
+    bucket.addElement(el, bbox)
   return bucket
 
 

@@ -1,7 +1,8 @@
-from matrixbuilder import *
+from matrix_builder import *
 from stopwatch import *
 from tools import *
 import pylinear.algorithms as algo
+import visualization
 
 
 
@@ -44,6 +45,7 @@ def solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0):
   negated_b = b_builder.matrix() * -1
 
   s = s_builder.matrix()
+  visualization.writeGnuplotSparsityPattern(",,s.gnuplot", s)
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)

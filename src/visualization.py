@@ -161,3 +161,8 @@ def writeMatlabFile(name, dof_manager, elements, solution):
 
 
 
+def writeGnuplotSparsityPattern(name, matrix):
+  gnuplot_file = file(name, "w")
+  for i,j in matrix.indices():
+    gnuplot_file.write("%d %d\n" % (i,j))
+

@@ -2,9 +2,44 @@ Massematrizen
   Helmholtzgleichung
 Adaptivitaet
 
-Komplexe Matrizen
-
 BCs
   Neumann
   Periodische
   Floquet
+
+hieraus ein echtes python package machen
+user code in test/ und example/ schieben
+
+pywannier erstellen
+
+unit tests
+
+unit tests fuer pylinear
+
+DOF Managers ausserhalb von tMesh's Kontrolle?
+
+adaptiveloop:
+  time dependent problems
+  different termination conditions
+  eigenvalue usability
+  wie kommt eoc rein?
+    als wrapper um verschiedene error estimators?
+
+a posteriori error estimator class
+class because it needs to cache error values
+different implementations:
+  - L2 against analytical solution
+  - L2, a posteriori estimate
+  - Energy, a posteriori estimate
+  
+tmeshchange: changesolution
+
+analytically bounded mesh
+  wie passt das zu meinem problem?
+  -> implementieren
+
+wer entscheidet ueber randknoten?
+  benutzer?
+  mesh?
+
+elemente muessen ihre nachbarn kennen
