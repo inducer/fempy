@@ -58,13 +58,21 @@ def _writeVtkFile(name, name_grid, info):
     
     nodes,values,triangles,extra_polys = info
     
+    # FIXME: temporary hack to work around VTK bug
+    values2 = []
+    for v in values:
+        if abs(v) < 1e-38:
+            values2.append(0)
+        else:
+            values2.append(v)
+
     my_nodes = [[node[0], node[1], 0.] for node in nodes]
       
     structure = pyvtk.PolyData(points = my_nodes, polygons = triangles)
     structure_grid = pyvtk.PolyData(points = my_nodes, polygons = extra_polys)
         
     pointdata = pyvtk. PointData(
-        pyvtk. Scalars(values, name="node_data", lookup_table = "default"))
+        pyvtk. Scalars(values2, name="node_data", lookup_table = "default"))
 
     vtk = pyvtk.VtkData(structure, "FEM result triangles", pointdata)
     vtk.tofile(name, "ascii")
