@@ -553,6 +553,146 @@ def writeGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False
 
 
 
+class tDictionaryOfArithmeticTypes(dict):
+    """Allows arithmetic operations on dictionaries
+    which propagate to its elements.
+    """
+
+    def assertSameKeys(self, other):
+        for key in self:
+            assert key in other
+        for key in other:
+            assert key in self
+
+    def unaryOperator(self, operator):
+        result = tDictionaryOfArithmeticTypes()
+        for key in self:
+            result[key] = operator(self[key])
+        return result
+
+    def binaryOperator(self, other, operator):
+        try:
+            self.assertSameKeys(other)
+            result = tDictionaryOfArithmeticTypes()
+            for key in self:
+                result[key] = operator(self[key], other[key])
+            return result
+        except TypeError:
+            result = tDictionaryOfArithmeticTypes()
+            for key in self:
+                result[key] = operator(self[key], other)
+            return result
+
+    def reverseBinaryOperator(self, other, operator):
+        try:
+            self.assertSameKeys(other)
+            result = tDictionaryOfArithmeticTypes()
+            for key in self:
+                result[key] = operator(other[key], self[key])
+            return result
+        except TypeError:
+            result = tDictionaryOfArithmeticTypes()
+            for key in self:
+                result[key] = operator(other, self[key])
+            return result
+
+    def __neg__(self): return self.unaryOperator(operator.neg)
+    def __pos__(self): return self.unaryOperator(operator.pos)
+    def __abs__(self): return self.unaryOperator(operator.abs)
+    def __invert__(self): return self.unaryOperator(operator.invert)
+
+    def __add__(self, other): return self.binaryOperator(other, operator.add)
+    def __sub__(self, other): return self.binaryOperator(other, operator.sub)
+    def __mul__(self, other): return self.binaryOperator(other, operator.mul)
+    def __div__(self, other): return self.binaryOperator(other, operator.div)
+    def __mod__(self, other): return self.binaryOperator(other, operator.mod)
+    def __pow__(self, other): return self.binaryOperator(other, operator.pow)
+    def __lshift__(self, other): return self.binaryOperator(other, operator.lshift)
+    def __rshift__(self, other): return self.binaryOperator(other, operator.rshift)
+    def __and__(self, other): return self.binaryOperator(other, operator.and_)
+    def __or__(self, other): return self.binaryOperator(other, operator.or_)
+    def __xor__(self, other): return self.binaryOperator(other, operator.xor)
+
+    def __radd__(self, other): return self.reverseBinaryOperator(other, operator.add)
+    def __rsub__(self, other): return self.reverseBinaryOperator(other, operator.sub)
+    def __rmul__(self, other): return self.reverseBinaryOperator(other, operator.mul)
+    def __rdiv__(self, other): return self.reverseBinaryOperator(other, operator.div)
+    def __rmod__(self, other): return self.reverseBinaryOperator(other, operator.mod)
+    def __rpow__(self, other): return self.reverseBinaryOperator(other, operator.pow)
+    def __rlshift__(self, other): return self.reverseBinaryOperator(other, operator.lshift)
+    def __rrshift__(self, other): return self.reverseBinaryOperator(other, operator.rshift)
+    def __rand__(self, other): return self.reverseBinaryOperator(other, operator.and_)
+    def __ror__(self, other): return self.reverseBinaryOperator(other, operator.or_)
+    def __rxor__(self, other): return self.reverseBinaryOperator(other, operator.xor)
+
+    def __iadd__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] += other[key]
+        return self
+
+    def __isub__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] -= other[key]
+        return self
+
+    def __imul__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] *= other[key]
+        return self
+
+    def __idiv__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] /= other[key]
+        return self
+
+    def __imod__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] %= other[key]
+        return self
+
+    def __ipow__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] **= other[key]
+        return self
+
+    def __ilshift__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] <<= other[key]
+        return self
+
+    def __irshift__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] >>= other[key]
+        return self
+
+    def __iand__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] &= other[key]
+        return self
+
+    def __ior__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] |= other[key]
+        return self
+
+    def __ixor__(self, other): 
+        self.assertSameKeys(other)
+        for key in self: 
+            self[key] ^= other[key]
+        return self
+
+
+
 # Generic utilities ----------------------------------------------------------
 def flatten(list):
     result = []
