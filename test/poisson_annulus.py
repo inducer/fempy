@@ -6,6 +6,11 @@ import fempy.mesh
 import fempy.geometry
 import fempy.expression as expression
 
+import psyco
+
+#psyco.full()
+#psyco.profile()
+
 outer_radius = 5
 inner_radius = 0.1
 outer_value = 0

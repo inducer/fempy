@@ -1,6 +1,6 @@
-from matrix_builder import *
-from stopwatch import *
-from tools import *
+import tools
+import stopwatch
+import pylinear.matrices as num
 import pylinear.algorithms as algo
 
 
@@ -13,7 +13,7 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
     else:
         x = start_vector[:]
 
-    job = tJob("solve")
+    job = stopwatch.tJob("solve")
     matrix_inv_op = algo.makeCGMatrixOperator(matrix_op, h * 2)
     matrix_inv_op.apply(rhs, x)
     job.done()
@@ -23,7 +23,7 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
     matrix_op.apply(x, residual)
     residual -= rhs
 
-    print "  absolute residual: ", norm2(residual)
+    print "  absolute residual: ", tools.norm2(residual)
     return x
 
 
@@ -39,42 +39,45 @@ def solvePoisson(mesh, f, u_d = lambda x: 0, start_vector = None):
     dof_manager = mesh.dofManager()
     dof_count = len(dof_manager)
 
-    s_builder = tSymmetricSparseMatrixBuilder(dof_count, num.Float)
-    b_builder = tDenseVectorBuilder(dof_count, num.Float)
+    s = num.zeros((dof_count, dof_count), num.Float, num.SparseBuildMatrix)
+    b = num.zeros((dof_count,), num.Float)
 
-    job = tJob("matrix")
+    job = stopwatch.tJob("matrix")
     for el in mesh.elements():
-        el.addVolumeIntegralOverDifferentiatedFormFunctions(s_builder)
+        s.addScatteredSymmetric(
+            el.nodeNumbers(),
+            el.getVolumeIntegralsOverDifferentiatedFormFunctions())
     job.done()
 
-    job = tJob("rhs")
+    job = stopwatch.tJob("rhs")
     for el in mesh.elements():
-        el.addVolumeIntegralOverFormFunction(b_builder, 
-                                             lambda x,formfunc_value: f(x) * formfunc_value)
+        this_el_b = el.getVolumeIntegralsOverFormFunction(
+            lambda x,formfunc_value: f(x) * formfunc_value)
+        for i, v in zip(el.nodeNumbers(), this_el_b):
+            b[i] += v
     job.done()
 
-    job = tJob("bcs: dirichlet")
-    b_mat = b_builder.matrix()
+    job = stopwatch.tJob("bcs: dirichlet")
   
     for node in filter(lambda node: node.ConstraintId == "dirichlet",
                        dof_manager.constrainedNodes()):
         boundary_value = u_d(node.Coordinates)
         i = node.Number
         if boundary_value != 0:
-            b_mat += s_builder.column(i) * boundary_value
-        s_builder.forceIdentityMap(i)
-        b_mat[ i ] = -boundary_value
+            b += s[:,i] * boundary_value
+        s[i] = 0
+        s[:,i] = 0
+        s[i,i] = 1
+        b[i] = -boundary_value
 
-    negated_b = b_builder.matrix() * -1
     job.done()
 
-    s = s_builder.matrix()
     #visualization.writeGnuplotSparsityPattern(",,s.data", s)
 
     compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
     s_op = algo.makeMatrixOperator(compiled_s)
     
-    return solveSPDSystem(s_op, negated_b)
+    return solveSPDSystem(s_op, -b)
 
 
 
@@ -89,14 +92,14 @@ def shiftAndInvertEigenproblem(sigma, s, m,
 
     m_op = algo.makeMatrixOperator(compiled_m)
 
-    job = tJob("shift matrix")
+    job = stopwatch.tJob("shift matrix")
     shifted_matrix = num.asarray(s - sigma * m, s.typecode(), num.SparseExecuteMatrix)
     shifted_matrix_invop = algo.makeUMFPACKMatrixOperator(shifted_matrix)
     job.done()
 
     op = algo.composeMatrixOperators(shifted_matrix_invop, m_op)
 
-    job = tJob("arpack rci")
+    job = stopwatch.tJob("arpack rci")
     results = algo.runArpack(op, m_op, algo.SHIFT_AND_INVERT_GENERALIZED,
                              sigma, number_of_eigenvalues, number_of_arnoldi_vectors,
                              algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)
@@ -125,23 +128,23 @@ class tLaplacianEigenproblemSolver:
         self._SBuilder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
         self._MBuilder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
 
-        job = tJob("stiffness matrix")
+        job = stopwatch.tJob("stiffness matrix")
         for el in self._Mesh.elements():
             el.addVolumeIntegralOverDifferentiatedFormFunctions(self._SBuilder)
         job.done()
 
-        job = tJob("mass matrix")
+        job = stopwatch.tJob("mass matrix")
         for el in self._Mesh.elements():
             el.addVolumeIntegralOverFormFunctions(self._MBuilder, g)
         job.done()
 
         if f is not None:
-            job = tJob("rhs")
+            job = stopwatch.tJob("rhs")
             for el in self._Mesh.elements():
                 el.addVolumeIntegralOverFormFunctions(self._SBuilder, f)
             job.done()
 
-        job = tJob("bcs, dirichlet")
+        job = stopwatch.tJob("bcs, dirichlet")
         for node in filter(lambda node: node.ConstraintId == "dirichlet",
                            dof_manager.constrainedNodes()):
             i = node.Number
@@ -163,7 +166,7 @@ class tLaplacianEigenproblemSolver:
         the alpha_i change and the remaining structure of 
         `periodicity_nodes' remains the same.
         """
-        job = tJob("bcs, periodic")
+        job = stopwatch.tJob("bcs, periodic")
         for condition in periodicity_nodes:
             main_node, main_factor = condition[0]
 

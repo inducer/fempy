@@ -9,6 +9,11 @@ import fempy.expression as expression
 
 import test_tools
 
+#import psyco
+
+#psyco.log()
+#psyco.profile()
+
 case = "zero_boundary"
 
 if case == "zero_boundary":
