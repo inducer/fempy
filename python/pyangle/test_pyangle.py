@@ -1,33 +1,23 @@
 import pyangle
 import math
 
-in_p = pyangle.tTriangulationParameters()
-out_p = pyangle.tTriangulationParameters()
+segments = 50
 
-segments = 400
-in_p.Segments.setSize( segments )
-in_p.Points.setSize( segments )
+points = [ (1,0),(1,1),(-1,1),(-1,-1),(1,-1),(1,0) ]
 
-segs = in_p.Segments
-pts = in_p.Points
-
-for i in range( 0, segments ):
+for i in range( 0, segments + 1 ):
   angle = i * 2 * math.pi / segments
-  pts.setSub( i, 0,  math.cos( angle ) )
-  pts.setSub( i, 1, math.sin( angle ) )
-
-  segs.setSub( i, 0, i )
-  segs.setSub( i, 1, (i + 1) % segments )
+  points.append( ( 0.5 * math.cos( angle ), 0.5 * math.sin( angle ) ) )
 
 def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
   bary_x = ( vert_origin.x() + vert_destination.x() + vert_apex.x() ) / 3
   bary_y = ( vert_origin.y() + vert_destination.y() + vert_apex.y() ) / 3
 
   dist_center = math.sqrt( bary_x**2 + bary_y**2 )
-  max_area = (dist_center-0.5)**4 + 0.0001
+  max_area = math.fabs( 0.002 * (dist_center-0.5) ) + 0.0001
   return area > max_area
 
-pyangle.triangulate( in_p, out_p, verbose = True, 
+out_p = pyangle.triangulateArea( points, [ (0,0) ], verbose = True, 
     refinement_func = needsRefinement )
 
 gp_file = file( "+tris.dat", "w" )
