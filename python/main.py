@@ -73,34 +73,55 @@ def vector2tuple( vector ):
 
 
 # geometry builder ------------------------------------------------------------
-def buildRectangularGeometry( dof_manager, dx, dy, nx, ny ):
+def buildRectangularGeometry( dof_manager, dx, dy, nx, ny, second_order = False ):
   # build nodes
-  nodes = [ ]
+  all_nodes = []
+  nodes = []
   for node_y in range( 0, ny + 1 ):
-    line_nodes = [ ]
+    line_nodes = []
     for node_x in range( 0, nx + 1 ):
       line_nodes.append( tNode( num.array( [ node_x * dx, node_y * dy ] ) ) )
     nodes.append( line_nodes )
+    all_nodes += line_nodes
+
+  between_nodes = {}
+
+  def between( node1, node2 ):
+    if (node1,node2) in between_nodes:
+      return between_nodes[ node1,node2 ]
+    else:
+      new_node = tNode( (node1.coordinates() + node2.coordinates() ) / 2 )
+      all_nodes.append( new_node )
+      between_nodes[ node1,node2 ] = \
+        between_nodes[ node2,node1 ] = new_node
+      return new_node
 
   # build elements, pay attention to mathematically positive orientation
   elements = []
   for el_y in range( 0, ny ):
     for el_x in range( 0, nx ):
-      lower_el = tTwoDimensionalLinearTriangularFiniteElement(
-        [ 
-	nodes[ el_y     ][ el_x     ],
-	nodes[ el_y     ][ el_x + 1 ],
-	nodes[ el_y + 1 ][ el_x     ] ], dof_manager )
-      upper_el = tTwoDimensionalLinearTriangularFiniteElement(
-        [ 
-	nodes[ el_y + 1 ][ el_x + 1 ],
-	nodes[ el_y + 1 ][ el_x     ],
-	nodes[ el_y     ][ el_x + 1 ] ], dof_manager )
+      # d c
+      # a b
+      a = nodes[el_y][el_x]
+      b = nodes[el_y][el_x + 1]
+      c = nodes[el_y + 1][el_x + 1]
+      d = nodes[el_y + 1][el_x]
+
+      if second_order:
+        lower_el = tTwoDimensionalQuadraticTriangularFiniteElement( 
+          [ a,b,d, between( a, b ), between( b, d ), between( d, a ) ], 
+          dof_manager )
+        upper_el = tTwoDimensionalQuadraticTriangularFiniteElement( 
+          [ c,d,b, between( c, d ), between( d, b ), between( b, c ) ], 
+          dof_manager )
+      else:
+        lower_el = tTwoDimensionalLinearTriangularFiniteElement( [ a,b,d ], dof_manager )
+        upper_el = tTwoDimensionalLinearTriangularFiniteElement( [ c,d,b ], dof_manager )
 
       elements.append( lower_el )
       elements.append( upper_el )
       
-  return nodes, elements
+  return all_nodes, elements
       
   
 
@@ -200,7 +221,7 @@ def poissonDemo():
 
   def f( x ):
     if norm2( x - center ) < 0.3:
-      return 0
+      return -20
     else:
       return 0
 
@@ -216,7 +237,7 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob( "geometry" )
-  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny )
+  nodes, elements = buildRectangularGeometry( dof_manager, width / nx, height / ny, nx, ny, True )
   job.done()
 
   job = tJob( "btree" )
@@ -224,11 +245,11 @@ def poissonDemo():
   job.done()
 
   # make the edge nodes dirichlet nodes
-  dirichlet_nodes = []
-  dirichlet_nodes.extend( nodes[0] )
-  dirichlet_nodes.extend( nodes[-1] )
-  dirichlet_nodes.extend( map( lambda node_line: node_line[0], nodes[1:-1] ) )
-  dirichlet_nodes.extend( map( lambda node_line: node_line[-1], nodes[1:-1] ) )
+  def isEdgeNode( node ):
+    x = node.coordinates()
+    return x[0] in [0,1] or x[1] in [0,1]
+
+  dirichlet_nodes = filter( isEdgeNode, nodes )
   
   solution = solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d )
 

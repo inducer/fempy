@@ -83,3 +83,15 @@ def makeFormFunctionExpression( order, dimensions, constraints, extra_expression
 
   coefficients = la.solve_linear_equations( matrix, rhs )
   return expression.simplify( linearCombination( coefficients, expressions ) )
+
+
+
+
+def makeFormFunctions( order, points, extra_expressions = [] ):
+  all_constraints = []
+  for i in range( len( points ) ):
+    all_constraints.append( [ zeroAt( *point ) for point in points ] )
+    all_constraints[i][i] = oneAt( *points[i] )
+  return [ makeFormFunctionExpression( order, len( points[0] ), constraint, 
+    extra_expressions ) for constraint in all_constraints ]
+
