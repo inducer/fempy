@@ -234,6 +234,13 @@ class tDependentDictionary(object):
     def copy(self):
         return tDependentDictionary(self._Function, self._Dictionary)
 
+    def __contains__(self, key):
+        try:
+            self[key]
+            return True
+        except KeyError:
+            return False
+
     def __getitem__(self, key):
         try:
             return self._Dictionary[key]
@@ -245,6 +252,15 @@ class tDependentDictionary(object):
     
     def genuineKeys(self):
         return self._Dictionary.keys()
+
+
+
+
+def addTuples(t1, t2):
+    return tuple([t1v + t2v for t1v, t2v in zip(t1, t2)])
+
+def negateTuple(t1):
+    return tuple([-t1v for t1v in t1])
 
 
 
