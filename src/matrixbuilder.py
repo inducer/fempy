@@ -59,7 +59,7 @@ class tMatrixBuilder:
 
 class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
   def __init__(self, size):
-    self.Matrix = num.zeros((size, size), num.Float, num.SparseSymmetricBuildMatrix)
+    self.Matrix = num.zeros((size, size), num.Float, num.SparseBuildMatrix)
 
   def matrix(self):
     return self.Matrix
@@ -68,17 +68,15 @@ class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
     mat = self.Matrix
     h,w = mat.shape
 
-    mat[dof_number] = num.zeros((h,), num.Float)
-    mat[:,dof_number] = num.zeros((h,), num.Float)
+    mat[dof_number] = 0
+    mat[:,dof_number] = 0
     mat[dof_number, dof_number] = 1.
 
   def column(self, i):
     return self.Matrix[:,i]
 
   def add(self, small_matrix, small_matrix_rows):
-    for i,mi in zip(range(len(small_matrix_rows)), small_matrix_rows):
-      for j,mj in zip(range(i+1), small_matrix_rows[:i+1]):
-        self.Matrix[mi,mj] += small_matrix[i,j]
+    self.Matrix.addScatteredSymmetric(small_matrix_rows, small_matrix)
 
 
 

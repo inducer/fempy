@@ -21,6 +21,9 @@ def solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0):
   job = tJob("matrix")
   for el in elements:
     el.addVolumeIntegralOverDifferentiatedFormFunctions(s_builder)
+  job.done()
+  job = tJob("rhs")
+  for el in elements:
     el.addVolumeIntegralOverFormFunction(b_builder, 
       lambda x,formfunc_value: f(x) * formfunc_value)
   job.done()
@@ -38,21 +41,11 @@ def solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0):
     s_builder.forceIdentityMap(i)
     b_mat[ i ] = -boundary_value
 
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-  # FIXME: odd copying semantics of b_mat
-
-  #negated_b = b_builder.matrix() * -1
-  negated_b = b_mat * -1
+  negated_b = b_builder.matrix() * -1
 
   s = s_builder.matrix()
 
-  compiled_s = num.asarray(s, s.typecode(), num.SparseSymmetricExecuteMatrix)
+  compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)
   s_inv_op = algo.makeCGMatrixOperator(s_op, dof_count)
 
