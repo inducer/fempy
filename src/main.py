@@ -163,8 +163,8 @@ def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 40
-  ny = 40
+  nx = 30
+  ny = 30
 
   center = num.array([ width/2, height/2 ])
 
@@ -186,16 +186,16 @@ def poissonDemo():
   dof_manager = tDOFManager()
 
   job = tJob("geometry")
-  #nodes, elements = buildRectangularGeometry(dof_manager, width / nx, height / ny, nx, ny, False)
+  nodes, elements = buildRectangularGeometry(dof_manager, width / nx, height / ny, nx, ny, False)
 
   def needsRefinement(vert_origin, vert_destination, vert_apex, area):
     return area > 0.001
-  shape = [ (0,0), (1,0), (1,1), (0,1) ]
-  nodes, elements = buildShapeGeometry(dof_manager, shape, needsRefinement, False)
+  #shape = [ (0,0), (1,0), (1,1), (0,1) ]
+  #nodes, elements = buildShapeGeometry(dof_manager, shape, needsRefinement, False)
   job.done()
 
   job = tJob("btree")
-  finder = spatial_btree.buildElementFinder(elements)
+  #finder = spatial_btree.buildElementFinder(elements)
   job.done()
 
   # make the edge nodes dirichlet nodes
@@ -207,11 +207,11 @@ def poissonDemo():
   
   solution = solvePoisson(dof_manager, elements, dirichlet_nodes, f, u_d)
 
-  s_f1 = makeSolutionFunction(elements, solution, finder)
+  #s_f1 = makeSolutionFunction(elements, solution, finder)
 
-  #visualization.writeMatlabFile("/tmp/visualize.m", dof_manager, elements, solution)
+  visualization.writeMatlabFile("/tmp/visualize.m", dof_manager, elements, solution)
   #visualization.writeGnuplotFile("+result.dat", dof_manager, elements, solution)
-  visualization.writeVtkFile("+result.vtk", dof_manager, elements, solution)
+  #visualization.writeVtkFile("+result.vtk", dof_manager, elements, solution)
   
 
 

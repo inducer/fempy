@@ -13,14 +13,12 @@ def flatten(list):
 
 
 
-def writeSymmetricMatrixAsCSV(filename, matrix):
+def writeMatrixAsCSV(filename, matrix):
   mat_file = file(filename, "w")
   h,w = matrix.shape
   for row in range(0, h):
-    for column in range(0, row):
+    for column in range(0, w):
       mat_file.write("%f," % matrix[ row, column ])
-    for column in range(row, w):
-      mat_file.write("%f," % matrix[ column, row ])
     mat_file.write("\n")
 
 

@@ -21,7 +21,7 @@ def getElementsBoundingBox(elements):
   bboxes = [ el.boundingBox() for el in elements ]
   bottom_lefts = [ bl for bl,tr in bboxes ]
   top_rights = [ tr for bl,tr in bboxes ]
-  return num.minimum.reduce(bottom_lefts), num.maximum.reduce(top_rights)
+  return reduce(num.minimum, bottom_lefts), reduce(num.maximum, top_rights)
 
 
 
@@ -33,7 +33,7 @@ def makeBuckets(bottom_left, top_right, allbuckets):
   half = (top_right - bottom_left) / 2.
   def do(dimension, pos):
     if dimension == dimensions:
-      origin = bottom_left + pos * half 
+      origin = bottom_left + num.multiply(pos, half)
       bucket = tSpatialBinaryTreeBucket(origin, origin + half)
       allbuckets.append(bucket)
       return bucket
@@ -44,7 +44,7 @@ def makeBuckets(bottom_left, top_right, allbuckets):
       second = do(dimension + 1, pos)
       return [ first, second ]
 
-  return do(0, num.zeros((dimensions,)))
+  return do(0, num.zeros((dimensions,), num.Float))
 
 
 

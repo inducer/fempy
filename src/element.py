@@ -188,7 +188,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
   def boundingBox(self):
     coords = [ node.coordinates() for node in self.Nodes ]
-    return num.minimum.reduce(coords), num.maximum.reduce(coords)
+    return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
     # convert point to barycentric
@@ -362,7 +362,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
   def boundingBox(self):
     # FIXME: this might be wrong
     coords = [ node.coordinates() for node in self.Nodes ]
-    return num.minimum.reduce(coords), num.maximum.reduce(coords)
+    return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
   def isInElement(self, point):
     # convert point to barycentric

@@ -59,7 +59,7 @@ class tMatrixBuilder:
 
 class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
   def __init__(self, size):
-    self.Matrix = sparse.ll_mat_sym(size)
+    self.Matrix = num.zeros((size, size), num.Float, num.SparseSymmetricBuildMatrix)
 
   def matrix(self):
     return self.Matrix
@@ -68,27 +68,16 @@ class tSymmetricSparseMatrixBuilder(tMatrixBuilder):
     mat = self.Matrix
     h,w = mat.shape
 
-    # FIXME: optimize with slicing syntax
-    for i in range(0, dof_number):
-      mat[ dof_number, i ] = 0
-    for i in range(dof_number + 1, h):
-      mat[ i, dof_number ] = 0
-    mat[ dof_number, dof_number ] = 1.
+    mat[dof_number] = num.zeros((h,), num.Float)
+    mat[dof_number, dof_number] = 1.
 
   def column(self, i):
-    h,w = self.Matrix.shape
-    col = num.zeros((h,), num.Float)
-    for j in range(0, i):
-      col[ j ] = self.Matrix[ i,j ]
-    for j in range(i, h):
-      col[ j ] = self.Matrix[ j,i ]
-    return col
+    return self.Matrix[:,i]
 
-  def add(self, small_matrix, small_matrix_rows, small_matrix_columns = None):
-    self.Matrix.update_add_mask_sym(
-	small_matrix, 
-	num.array(small_matrix_rows),
-	num.ones((len(small_matrix_rows),)))
+  def add(self, small_matrix, small_matrix_rows):
+    for i,mi in zip(range(len(small_matrix_rows)), small_matrix_rows):
+      for j,mj in zip(range(len(small_matrix_rows)), small_matrix_rows):
+        self.Matrix[mi,mj] += small_matrix[i,j]
 
 
 
@@ -115,7 +104,7 @@ class tDenseVectorBuilder(tMatrixBuilder):
   def matrix(self):
     return self.Matrix
 
-  def add(self, small_matrix, small_matrix_rows, small_matrix_columns = None):
+  def add(self, small_matrix, small_matrix_rows):
     for i in range(0, len(small_matrix_rows)):
       if small_matrix[ i ] != 0:
 	self.Matrix[ small_matrix_rows[ i ] ] += small_matrix[ i ]
