@@ -131,12 +131,12 @@ def unitCellDemo(mesh, epsilon, sigma, list_of_ks):
   band_diagram_file = file(",,band_diagram.data", "w")
   for index, (k, result) in tools.indexAnd(results):
     for val in result.RitzValues:
-      band_diagram_file.write("%d\t%f\n" % (index, val.real))
+      band_diagram_file.write("%d\t%f\n" % (index, math.sqrt(val.real)))
 
 
 
 
-def runEigenDemo(inner_radius = 0.3):
+def runEigenDemo(inner_radius = 0.18):
   def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
     return area >= 1e-2
     bary_x = ( vert_origin.x() + vert_destination.x() + vert_apex.x() ) / 3
@@ -157,16 +157,17 @@ def runEigenDemo(inner_radius = 0.3):
 
   def epsilon(x):
     if tools.norm2(x) < inner_radius:
-      return 100
+      return 11.56
     else:
-      return 0
+      return 1
 
   sigma = 0.9
   
   raw_ks = [
     num.array([0,0], num.Float),
-    num.array([1000,0], num.Float),
-    num.array([0,1000], num.Float)]
+    num.array([math.pi,0], num.Float),
+    num.array([math.pi,math.pi], num.Float),
+    num.array([0,0], num.Float)]
   unitCellDemo(mesh, epsilon, sigma, 
                tools.interpolateVectorList(raw_ks,20))
 
