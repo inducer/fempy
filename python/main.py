@@ -1,6 +1,7 @@
 #! /usr/bin/python
 
 import Numeric as num
+import LinearAlgebra as la
 import spmatrix as sparse
 import itsolvers
 import math
@@ -187,11 +188,14 @@ class tFiniteElement:
 
 
 
-class tTriangularFiniteElement( tFiniteElement ):
+class tTwoDimensionalTriangularFiniteElement( tFiniteElement ):
   def __init__( self, nodes, dof_manager ):
     tFiniteElement.__init__( self, nodes, dof_manager )
-    self.X = map( self.Nodes, lambda node: node.coordinates()[ 0 ] )
-    self.Y = map( self.Nodes, lambda node: node.coordinates()[ 1 ] )
+    self.X = map( lambda node: node.coordinates()[ 0 ], self.Nodes )
+    self.Y = map( lambda node: node.coordinates()[ 1 ], self.Nodes )
+
+    x = self.X
+    y = self.Y
 
     self.Area = math.fabs( 
     (x[1]-x[0])*(y[2]-y[0])-
@@ -210,12 +214,12 @@ class tTriangularFiniteElement( tFiniteElement ):
 
 
 
-class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
+class tTwoDimensionalLinearTriangularFiniteElement( tTwoDimensionalTriangularFiniteElement ):
   # cf. \cite{50linesofmatlab} 
   # also see related axiom calculation 50_lines_of_matlab_matrix_m.tm
 
   def __init__( self, nodes, dof_manager ):
-    tTriangularFiniteElement.__init__( self, nodes )
+    tTwoDimensionalTriangularFiniteElement.__init__( self, nodes, dof_manager )
     x = self.X
     y = self.Y
 
@@ -241,7 +245,7 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     g = num.matrixmultiply( self.InvCoordinateMatrix, num.array(
       [ [ 0, 0 ], [ include_y, 0 ], [ 0, include_x ] ] ) )
     influence_matrix = self.Area * 0.5 * g * transpose( g )
-    builder.addToMatrix( influence_matrix, self.NodeIds )
+    builder.add( influence_matrix, self.NodeIds )
 
   def addVolumeIntegralOverFormFunctions( self, builder ):
     raise tFiniteElementError, "NYI: addVolumeIntegralOverFormFunctions" 
@@ -250,7 +254,7 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
     # FIXME: this is way past inexact
     # is real numerical integration worth the fuss here?
     influences = num.ones( len( self.Nodes ) ) * self.Area * (1/3.) * f( self.barycenter() )
-    builder.addToMatrix( self.NodeIds, i
+    builder.add( influences, self.NodeIds )
 
 
 
@@ -260,16 +264,16 @@ class tTwoDimensionalLinearTriangularFiniteElement( tFiniteElement ):
 def buildRectangularGeometry( dof_manager, dx, dy, nx, ny ):
   # build nodes
   nodes = [ ]
-  for node_y = range( 0, ny ):
+  for node_y in range( 0, ny ):
     line_nodes = [ ]
-    for node_x = range( 0, nx ):
+    for node_x in range( 0, nx ):
       line_nodes.append( tNode( num.array( [ node_x * dx, node_y * dy ] ) ) )
     nodes.append( line_nodes )
 
   # build elements, pay attention to mathematically positive orientation
   elements = []
-  for el_y = range( 0, ny - 1 ):
-    for el_x = range( 0, nx - 1 ):
+  for el_y in range( 0, ny - 1 ):
+    for el_x in range( 0, nx - 1 ):
       lower_el = tTwoDimensionalLinearTriangularFiniteElement(
         [ 
 	nodes[ el_y     ][ el_x     ],
@@ -306,11 +310,13 @@ def solvePoisson( dof_manager, elements, dirichlet_nodes, f, u_d = lambda x: 0 )
     el.addVolumeIntegralOverDifferentiatedFormFunctions( s_builder )
     el.addVolumeIntegralOverFormFunction( b_builder, f )
 
+  b_mat = b_builder.matrix()
+
   for node in dirichlet_nodes:
     i = dof_manager.obtainDegreeOfFreedom( node )
-    b_builder.matrix() += s_builder.matrix()[:,i]
+    b_mat += s_builder.matrix()[:,i]
     s_builder.forceIdentityMap( i )
-    b_builder.matrix()[ i ] = -f( node.coordinates() )
+    b_mat[ i ] = -f( node.coordinates() )
 
   negated_b = b_builder.matrix() * -1
   compiled_s = s_builder.matrix().to_sss()
