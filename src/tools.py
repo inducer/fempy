@@ -1,8 +1,8 @@
+import math, sys, operator, types
+
 import pylinear.matrices as num
 import pylinear.linear_algebra as la
 import pylinear.matrix_tools as mtools
-import math
-import operator
 
 
 
@@ -151,17 +151,21 @@ class tFiniteGrid(tGrid):
     def asSequence(self):
         return tLexicographicSequencer(self, self._Limits)
 
-    def gridBlockIndices(self):
-        seq = tLexicographicSequencer(self, [(low, high-1) for low, high in self._Limits])
-        for idx in range(len(seq)):
-            multidim_idx = seq.translateSingleIndex(idx)
-            yield multidim_idx 
+    def chopUpperBoundary(self):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low, high-1) for low, high in self._Limits])
 
-    def innerIndices(self):
-        seq = tLexicographicSequencer(self, [(low+1, high-1) for low, high in self._Limits])
-        for idx in range(len(seq)):
-            multidim_idx = seq.translateSingleIndex(idx)
-            yield multidim_idx 
+    def chopLowerBoundary(self):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low+1, high) for low, high in self._Limits])
+
+    def chopBothBoundaries(self):
+        return tFiniteGrid(self._Origin, self._GridVectors,
+                           [(low+1, high-1) for low, high in self._Limits])
+
+    def reducePeriodically(self, key):
+        return tuple([
+            el % (high-low) for el, (low, high) in zip(key, self._Limits)])
   
 
 
@@ -412,6 +416,7 @@ class tSparseVector(tDictionaryWithDefault):
 
 
 class tLinearSystemOfEquations:
+    # UNTESTED.
     def __init__(self):
         self.Equations = []
         self.SymbolMap = {}
@@ -420,8 +425,7 @@ class tLinearSystemOfEquations:
     def registerEquation(self, coeffs_and_symbols, rhs):
         self.Equations.append(([
             (coeff, self.SymbolMap.setdefault(symbol, len(self.SymbolMap)))
-            for coeff, symbol 
-            ], rhs))
+            for coeff, symbol  in coeffs_and_symbols], rhs))
 
     def solve(self, typecode = num.Float):
         m = num.zeros((len(self.Equations), len(self.SymbolMap)), typecode)
@@ -435,6 +439,34 @@ class tLinearSystemOfEquations:
         for sym, index in self.SymbolMap.iteritems():
             result[sym] = sol[index]
         return result
+
+
+
+
+def writeGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
+    h = float(b - a)/steps
+    gnuplot_file = file(fname, "w")
+
+    def do_plot(func):
+        for n in range(steps):
+            if progress:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            x = a + h * n
+            gnuplot_file.write("%f\t%f\n" % (x, func(x)))
+
+    if isinstance(f, types.ListType):
+        for f_index, real_f in enumerate(f):
+            if progress:
+                sys.stdout.write("function %d: " % f_index)
+            do_plot(real_f)
+            gnuplot_file.write("\n")
+            if progress:
+                sys.stdout.write("\n")
+    else:
+        do_plot(f)
+        if progress:
+            sys.stdout.write("\n")
 
 
 

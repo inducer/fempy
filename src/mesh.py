@@ -12,6 +12,8 @@ import fempy.spatial_btree as spatial_btree
 
 # Mesh description data structures ------------------------------------------------
 class tShapeGuide:
+  """Represents a non-straight-line segment of a shape section.
+  """
   def __init__(self, deformation_coordinate, interval, expression, 
       initial_point_count = 3, render_final_point = False, use_exact_elements = True):
     self.DeformationCoordinate = deformation_coordinate
@@ -24,10 +26,12 @@ class tShapeGuide:
   def evaluate(self, non_deform_coord):
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
 
-  def containsPoint(self, point, relative_threshold):
+  def containsPoint(self, point, relative_threshold = 1e-10):
     a,b = self.Interval
     try:
-      return abs(self.evaluate(point[1-self.DeformationCoordinate]) -
+      non_dc_value = point[1-self.DeformationCoordinate]
+      return min(a,b) <= non_dc_value <= max(a,b) and \
+             abs(self.evaluate(non_dc_value) -
                  point[self.DeformationCoordinate]) < relative_threshold * abs(b-a)
     except ValueError:
       return False
@@ -108,8 +112,8 @@ class tMesh:
   """
 
   def __init__(self):
-    """Sets up parameters and basic data for the mesh, but should *not*
-    generate it."""
+    """Sets up parameters and basic data for the mesh and generates it.
+    """
     self.ElementFinder = None
     self.DOFManager = element.tDOFManager()
     self.Elements = []
@@ -222,7 +226,6 @@ class _tPyangleMesh(tMesh):
       marker = out_p.PointMarkers.get(no)
       guide = self.findShapeGuideNumber(marker)
       section = self.findShapeSectionByNumber(marker)
-      coordinates = num.array([pts.getSub(no, 0), pts.getSub(no, 1)])
 
       constraint_id = None
       tracking_id = None
@@ -233,6 +236,7 @@ class _tPyangleMesh(tMesh):
         c = guide.DeformationCoordinate
         pts.setSub(no, c, guide.evaluate(pts.getSub(no, 1-c)))
 
+      coordinates = num.array([pts.getSub(no, 0), pts.getSub(no, 1)])
       self.DOFManager.registerNode(no, coordinates, tracking_id, section)
 
     pyangle.writeGnuplotMesh(",,mesh.data", out_p)
@@ -245,23 +249,15 @@ class _tPyangleMesh(tMesh):
                              tris.getSub(tri, 1),
                              tris.getSub(tri, 2)]]
 
-      def guideContainsNode(guide, node):
-        coords = node.Coordinates
-        a,b = guide.Interval
-        scale = math.fabs(b-a)
-        c = guide.DeformationCoordinate
-        if min(a,b) <= coords[1-c] <= max(a,b):
-          return math.fabs(guide.evaluate(coords[1-c])-coords[c]) < 1e-10 * scale
-        else:
-          return False
-
       possible_guides = []
+
       for node in my_nodes:
         guide = self.findShapeGuideNumber(out_p.PointMarkers.get(node.Tag))
+
         if isinstance(guide, tShapeGuide) and guide not in possible_guides:
           my_guided_nodes = []
-          for index, no_ in zip(range(3), my_nodes):
-            if guideContainsNode(guide, no_):
+          for index, no_ in enumerate(my_nodes):
+            if guide.containsPoint(no_.Coordinates):
               my_guided_nodes.append(no_)
             else:
               my_index_unguided = index
@@ -336,7 +332,7 @@ class _tPyangleMesh(tMesh):
         expr_reference_x = ("*", ("+", expr_x_minus_y, 1), 0.5)
         expr_reference_y = ("*", ("-", 1, expr_x_minus_y), 0.5)
         expr_linear_reference = ("+", 
-                                 nc0[deform_coord], 
+                                nc0[deform_coord], 
                                  expression.linearCombination(mat[deform_coord], 
                                                               [expr_reference_x, expr_reference_y]))
         expr_transform[deform_coord] = ("+",
