@@ -126,15 +126,20 @@ def makeDistortedLinearElement( nodes, dof_manager ):
 
   mat = num.array( [ n - node_coords[0] for n in node_coords[1:] ] )
   matinv = la.inverse( mat )
+  nc0 = node_coords[0]
 
   vars = [ ("variable","0"), ("variable","1") ]
+  inv_vars = [ 
+    ("-", ("variable","0"), nc0[0]), 
+    ("-", ("variable","1"), nc0[1]) ]
+
   return tDistortedTwoDimensionalLinearTriangularFiniteElement( 
       nodes, [ 
-        expression.linearCombination( mat[0], vars ), 
-        expression.linearCombination( mat[1], vars ), 
+        ("+", nc0[0], expression.linearCombination( mat[0], vars ) ), 
+        ("+", nc0[1], expression.linearCombination( mat[1], vars ) ), 
       ], [
-        expression.linearCombination( matinv[0], vars ), 
-        expression.linearCombination( matinv[1], vars ), 
+        expression.linearCombination( matinv[0], inv_vars ), 
+        expression.linearCombination( matinv[1], inv_vars ), 
       ], dof_manager )
 
 
@@ -158,8 +163,8 @@ def poissonDemo():
   width = 1.
   height = 1.
   
-  nx = 20
-  ny = 20
+  nx = 10
+  ny = 10
 
   center = num.array( [ width/2, height/2 ] )
 
@@ -204,9 +209,9 @@ def poissonDemo():
 
   s_f1 = makeSolutionFunction( elements, solution, finder )
 
-  visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
+  #visualization.writeMatlabFile( "/tmp/visualize.m", dof_manager, elements, solution )
   #visualization.writeGnuplotFile( "+result.dat", dof_manager, elements, solution )
-  #visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
+  visualization.writeVtkFile( "+result.vtk", dof_manager, elements, solution )
   
 
 
