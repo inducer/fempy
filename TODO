@@ -24,10 +24,4 @@ error estimator implementations:
   - L2, a posteriori estimate
   - Energy, a posteriori estimate
   
-analytically bounded mesh
-  wie passt das zu meinem problem?
-  spezifikation ueber deformationsfelder
-    mit "deformationshauptachse"
-  -> implementieren
-
 elemente muessen ihre nachbarn kennen

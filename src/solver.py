@@ -47,6 +47,7 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
   for el in mesh.elements():
     el.addVolumeIntegralOverDifferentiatedFormFunctions(s_builder)
   job.done()
+
   job = tJob("rhs")
   for el in mesh.elements():
     el.addVolumeIntegralOverFormFunction(b_builder, 
@@ -68,10 +69,101 @@ def solvePoisson(mesh, dirichlet_nodes, f, u_d = lambda x: 0, start_vector = Non
   job.done()
 
   s = s_builder.matrix()
-  #visualization.writeGnuplotSparsityPattern(",,s.gnuplot", s)
+  #visualization.writeGnuplotSparsityPattern(",,s.data", s)
 
   compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
   s_op = algo.makeMatrixOperator(compiled_s)
 
   return solveSPDSystem(s_op, negated_b)
 
+
+
+
+def shiftAndInvertEigenproblem(sigma, s, m, 
+                               number_of_eigenvalues = 5, 
+                               number_of_arnoldi_vectors = 10,
+                               tolearnce = 1e-10,
+                               max_iterations = 0):
+
+  compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
+  compiled_m = num.asarray(m, m.typecode(), num.SparseExecuteMatrix)
+
+  m_op = algo.makeMatrixOperator(compiled_m)
+
+  job = stopwatch.tJob("shift matrix")
+  shifted_matrix = num.asarray(s - sigma * m, typecode, num.SparseExecuteMatrix)
+  shifted_matrix_invop = algo.makeUMFPACKMatrixOperator(shifted_matrix)
+  job.done()
+
+  op = algo.composeMatrixOperator(shifted_matrix_invop, m_op)
+
+  job = stopwatch.tJob("arpack rci")
+  results = algo.runArpack(op, m_op, algo.SHIFT_AND_INVERT_GENERALIZED,
+                           sigma, number_of_eigenvalues, number_of_arnoldi_vectors,
+                           algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)
+  job.done()
+  
+  return results
+
+
+
+
+def solveLaplaceEigenproblem(sigma, mesh, 
+                             dirichlet_nodes, periodic_nodes = [], 
+                             f = None, g = lambda x: 1.,
+                             typecode = num.Float):
+  """Solve the Poisson equation
+
+  laplace u + f * u = g * lambda * u 
+
+  with u = 0 in nodes given in the list `dirichlet_nodes'. 
+  `periodic_nodes' is a list of tuples (node_a, node_b, factor),
+  such that a boundary condition of u(node_a) = factor * u(node_b)
+  will be forced.
+  """
+
+  dof_manager = mesh.dofManager()
+  dof_count = dof_manager.countDegreesOfFreedom()
+
+  s_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
+  m_builder = tSymmetricSparseMatrixBuilder(dof_count, typecode)
+
+  job = tJob("stiffness matrix")
+  for el in mesh.elements():
+    el.addVolumeIntegralOverDifferentiatedFormFunctions(s_builder)
+  job.done()
+
+  job = tJob("mass matrix")
+  for el in mesh.elements():
+    el.addVolumeIntegralOverFormFunctions(m_builder, g)
+  job.done()
+
+  if f is not None:
+    job = tJob("mass matrix")
+    for el in mesh.elements():
+      el.addVolumeIntegralOverFormFunctions(s_builder, f)
+    job.done()
+
+  job = tJob("bcs, dirichlet")
+  for node in dirichlet_nodes:
+    i = dof_manager.getDegreeOfFreedomNumber(node)
+    s_builder.forceIdentityMap(i)
+    m_builder.matrix()[i] = 0
+    m_builder.matrix()[:,i] = 0
+  job.done()
+
+  job = tJob("bcs, periodic")
+  for node_a, node_b, factor in periodic_nodes:
+    nr_a = dof_manager.getDegreeOfFreedomNumber(node_a)
+    nr_b = dof_manager.getDegreeOfFreedomNumber(node_b)
+
+    s_builder.forceIdentityMap(nr_a)
+    s_builder.matrix()[nr_a,nr_b] = -factor
+    m_builder.matrix()[nr_a] = 0
+    m_builder.matrix()[:,nr_a] = 0
+  job.done()
+
+  s = s_builder.matrix()
+  m = m_builder.matrix()
+
+  return shiftAndInvertEigenproblem(sigma, s, m)

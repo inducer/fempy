@@ -68,10 +68,6 @@ class tAnalyticSolutionH1ErrorEstimator(tErrorEstimator):
       xf_jac_inv = la.inverse(xf_jac)
       twisted_grad = num.matrixmultiply(num.transpose(xf_jac_inv), approx_grad_solution(point))
 
-      print "twisted:", twisted_grad
-      print "exact:", self.GradAnalyticSolution(real_point)
-      raw_input()
-
       return xf_jac_det * ((self.AnalyticSolution(real_point) - solution_func_value) ** 2 \
         + tools.norm2squared(twisted_grad-self.GradAnalyticSolution(real_point)))
 

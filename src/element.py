@@ -74,7 +74,7 @@ class tFiniteElement:
     raise RuntimeError, "not implemented"
 
   # Integral contributions ----------------------------------------------------
-  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
+  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both", factor = 1.):
     """This functions adds to the matrix built by `builder' the term 
 
     \int_{Element} d/dx \phi_i(x,y) d/dx \phi_j(x,y) d(x,y) (for which_derivative == "x")
@@ -87,14 +87,16 @@ class tFiniteElement:
     """
     raise RuntimeError, "not implemented"
 
-  def addVolumeIntegralOverFormFunctions(self, builder):
+  def addVolumeIntegralOverFormFunctions(self, builder, f):
     """This functions adds to the matrix built by `builder' the term 
 
-    \int_{Element} \phi_i(x,y) \phi_j(x,y) d(x,y)
+    \int_{Element} f(x,y) \phi_i(x,y) \phi_j(x,y) d(x,y)
 
     where \phi_i and \phi_j run through all the form functions present in
     the element. The correct entries in the matrix are found through the
     DOF manager lookup facility.
+
+    The argument to f is given in transformed coordinates.
     """
     raise RuntimeError, "not implemented"
 
@@ -175,20 +177,6 @@ def addFormFunctions(cls, form_func_expr, dimensions):
       for dim in range(dimensions) ]
     for expr in cls.FormFunctionExpressions ]
 
-  n = len(cls.FormFunctions)
-  crossint = num.zeros((n,n), num.Float)
-
-  for i in range(n):
-    for j in range(0, i+1):
-      fi = cls.FormFunctions[ i ]
-      fj = cls.FormFunctions[ j ]
-
-      crossint[i,j] = crossint[j,i] = \
-        integration.integrateOnUnitTriangle(
-            lambda point: fi(point) * fj(point))
-
-  cls.FormFunctionCrossIntegrals = crossint
-
 
 
 
@@ -250,7 +238,7 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
     return sum([ nd.coordinates() for nd in self.Nodes[0:3] ]) / 3.
 
   # Integral contributions ----------------------------------------------------
-  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
+  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both", factor = 1.):
     g00 = self.TransformMatrix[0,0]
     g01 = self.TransformMatrix[0,1]
     g10 = self.TransformMatrix[1,0]
@@ -280,10 +268,24 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
-    builder.addScatteredSymmetric(self.InverseDeterminant * influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(factor * self.InverseDeterminant * influence_matrix, self.NodeNumbers)
 
-  def addVolumeIntegralOverFormFunctions(self, builder):
+  def addVolumeIntegralOverFormFunctions(self, builder, f):
     jacobian_det = self.Area * 2
+    def functionInIntegral(point):
+      return f(self.transformToReal(point)) * fr(point) * fc(point)
+
+    node_count = len(self.Nodes)
+    influence_matrix = num.zeros((node_count, node_count), num.Float)
+    for row in range(0, node_count):
+      for column in range(0, row + 1):
+	fr = self.FormFunctions[row]
+	fc = self.FormFunctions[column]
+
+	influence_matrix[row,column] = \
+	influence_matrix[column,row] = \
+	    integration.integrateOnUnitTriangle(functionInIntegral)
+
     builder.addScatteredSymmetric(jacobian_det * self.FormFunctionCrossIntegrals, 
 	self.NodeNumbers)
 
@@ -388,7 +390,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
         neg_bound < 1-unit_coords[0]-unit_coords[1] < pos_bound
 
   # Integral contributions ----------------------------------------------------
-  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both"):
+  def addVolumeIntegralOverDifferentiatedFormFunctions(self, builder, which_derivative = "both", factor = 1.):
     if which_derivative == "both":
       def functionInIntegral(point):
         g = self.getTransformJacobian(point)
@@ -422,12 +424,12 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
-    builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(factor * influence_matrix, self.NodeNumbers)
 
-  def addVolumeIntegralOverFormFunctions(self, builder):
+  def addVolumeIntegralOverFormFunctions(self, builder, f):
     def functionInIntegral(point):
       g = self.getTransformJacobian(point)
-      return math.fabs(la.determinant(g)) * \
+      return f(self.transformToReal(point)) * math.fabs(la.determinant(g)) * \
         fr(point) * fc(point)
 
     node_count = len(self.Nodes)
@@ -441,7 +443,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 	influence_matrix[column,row] = \
 	    integration.integrateOnUnitTriangle(functionInIntegral)
 
-    builder.addScattered(influence_matrix, self.NodeNumbers)
+    builder.addScatteredSymmetric(influence_matrix, self.NodeNumbers)
 
   def addVolumeIntegralOverFormFunction(self, builder, f):
     n = len(self.FormFunctions)

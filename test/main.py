@@ -5,6 +5,7 @@ import pstats
 
 # System imports --------------------------------------------------------------
 import math
+import cmath
 import sys
 
 # Numerics imports ------------------------------------------------------------
@@ -85,25 +86,10 @@ def getParallelogram(edge_length = 1, x_skew = 0, y_skew = 0):
   ys = y_skew / 2.
   return [(a-xs,-a+ys), (a+xs,a+ys), (-a+xs,a-ys), (-a-xs,-a-ys)]
 
-def getCircle(radius, segments):
-  """The returned circle has beginning and end in the positive x
-  direction.
-  """
-  result = []
-  h = (2*math.pi) / segments
-  inc = -math.pi / 4.
-  for i in range(segments):
-    result.append((radius * math.cos(inc), radius * math.sin(inc)))
-    inc += h
-  return result
-
-def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3):
-  return [tShapeSection(getParallelogram(edge_length), True),
-          tShapeSection(getCircle(edge_length * inner_factor, segments), False)]
-
-def getExactCircle(radius):
+def getCircle(radius, use_exact = True):
   sqrt2_inv = math.sqrt(2)/2 * radius
   r_squared = radius * radius
+
   return [
     # going counterclockwise.
     #
@@ -113,25 +99,32 @@ def getExactCircle(radius):
 
     # right
     tShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
-                ("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                ("**",("-",r_squared,("**",("variable","t"),2)),0.5),
+                use_exact_elements = use_exact),
     
     # top
     tShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
-                ("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                ("**",("-",r_squared,("**",("variable","t"),2)),0.5),
+                use_exact_elements = use_exact),
 
     # left
     tShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
-                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5))),
+                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                use_exact_elements = use_exact),
 
     # bottom
     tShapeGuide(1, [-sqrt2_inv,sqrt2_inv],
-                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5))),
+                ("-",("**",("-",r_squared,("**",("variable","t"),2)),0.5)),
+                use_exact_elements = use_exact),
     ]
 
-def getExactUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3):
+def getUnitCellGeometry(edge_length, segments = 50, inner_factor = 0.3, use_exact = True):
   return [tShapeSection(getParallelogram(edge_length), True),
-          tShapeSection(getExactCircle(edge_length * inner_factor), False)]
+          tShapeSection(getCircle(edge_length * inner_factor, use_exact), False)]
 
+def getAnnulusGeometry(outer_radius, inner_radius, use_exact = True):
+  return [tShapeSection(getCircle(outer_radius, use_exact), True),
+          tShapeSection(getCircle(inner_radius, use_exact), True)]
 
 
 
@@ -146,7 +139,6 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   # build geometry ------------------------------------------------------------
   job = tJob("geometry")
-  
   mesh.generate()
   job.done()
 
@@ -188,7 +180,16 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     return refine_decision, solution_vector
 
   new_mesh, solution_vector = solveAdaptively(mesh, solve, max_iterations)
-  print "Converged with order:", eoc_rec.estimateOrderOfConvergence()[0,1]
+
+  print "-------------------------------------------------------"
+  print "EOC overall:", eoc_rec.estimateOrderOfConvergence()[0,1]
+  print "EOC Gliding means:"
+  gliding_means = eoc_rec.estimateOrderOfConvergence(3)
+  gliding_means_iterations,dummy = gliding_means.shape
+  for i in range(gliding_means_iterations):
+    print "Iteration %d: %f" % (i, gliding_means[i,1])
+  print "-------------------------------------------------------"
+
   eoc_rec.writeGnuplotFile(",,convergence.data")
 
   #vis.writeMatlabFile("/tmp/visualize.m", new_mesh.dofManager(), new_mesh.elements(), solution_vector)
@@ -198,13 +199,90 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
 
 
-sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
-mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 2))
-adaptiveDemo(sol, mesh, max_iterations = 6)
+def unitCellDemo(mesh, epsilon, sigma, k):
+  job = tJob("geometry")
+  mesh.generate()
+  job.done()
+
+  bnodes = mesh.boundaryNodes()
+
+  def distanceToLine(start_point, direction, point):
+    # Ansatz: start_point + alpha * direction 
+    # <start_point + alpha * direction - point, direction> = 0!
+    alpha = - num.innerproduct(start_point - point, direction)/tools.norm2squared(direction)
+    foot_point = start_point + alpha * direction
+    return tools.norm2(point - foot_point), alpha
+
+  job = tJob("periodicity")
+  periodic_nodes = []
+  thresh = 1e-5
+  while bnodes:
+    my_node = bnodes[0]
+
+    nodes_with_distances = tools.decorate(
+      lambda node: distanceToLine(my_node.coordinates(), k, node.coordinates())[0],
+      bnodes[1:])
+    close_nodes, far_away_nodes = tools.partition(lambda (node, dist): dist < thresh, nodes_with_distances)
+
+    if close_nodes:
+      bnodes = map(lambda (node, dist): node, far_away_nodes)
+      tagged_nodes = map(lambda (node, dist): node, close_nodes)
+    else:
+      nodes_with_distances.sort(lambda (node1, dist1), (node2, dist2): cmp(dist1, dist2))
+      tagged_nodes = [nodes_with_distances[0][0]]
+      bnodes = map(lambda (node, dist): node, nodes_with_distances[1:])
+
+    for tagged_node in tagged_nodes:
+      dist = num.innerproduct(tagged_node.coordinates()-my_node.coordinates(),k)
+      periodic_nodes.append((my_node, tagged_node, cmath.exp(1j * dist)))
+  job.done()
+
+  connections_file = file(",,connections.data", "w")
+  for a,b,factor in periodic_nodes:
+    connections_file.write("%f\t%f\n" % (a.coordinates()[0], a.coordinates()[1]))
+    connections_file.write("%f\t%f\n" % (b.coordinates()[0], b.coordinates()[1]))
+    connections_file.write("\n")
+
+  raw_input()
+
+  solver.solveLaplaceEigenproblem(sigma, mesh, [], periodic_nodes, g = epsilon,
+                                  typecode = num.Complex)
+
+
+
+
+def runPoissonDemo():
+  sol = ("sin", ("*", 5, ("*", ("**",("variable","0"),2), ("**",("variable","1"),2))))
+  mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 2))
+  #mesh = tTwoDimensionalMesh(getAnnulusGeometry(1.5, 0.5, False), hole_starts = [[0,0]])
+  adaptiveDemo(sol, mesh, max_iterations = 7)
+
+
+
+def runEigenDemo():
+  mesh = tTwoDimensionalMesh(getUnitCellGeometry(edge_length = 1, inner_factor = 0.3))
+  def epsilon(x):
+    if tools.norm2(x) < 0.3:
+      return 11
+    else:
+      return 0
+
+  sigma = 0.9
+  
+  unitCellDemo(mesh, epsilon, sigma, num.array([1,1]))
+
+
+
+
+runEigenDemo()
+
+
+
 
 def doProfile():
   profile.run("poissonDemo()", ",,profile")
   p = pstats.Stats(",,profile")
   p.sort_stats("time").print_stats()
+
 
 

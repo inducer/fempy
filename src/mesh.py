@@ -222,12 +222,13 @@ class tRectangularMesh(tMesh):
 # Pyangle mesh ----------------------------------------------------------
 class tShapeGuide:
   def __init__(self, deformation_coordinate, interval, expression, 
-      initial_point_count = 3, render_final_point = False):
+      initial_point_count = 3, render_final_point = False, use_exact_elements = True):
     self.DeformationCoordinate = deformation_coordinate
     self.Interval = interval
     self.Expression = expression
     self.InitialPointCount = initial_point_count
     self.RenderFinalPoint = render_final_point
+    self.UseExactElements = use_exact_elements
 
   def evaluate(self, non_deform_coord):
     return expression.evaluate(self.Expression, {"t": non_deform_coord })
@@ -346,7 +347,7 @@ class _tPyangleMesh(tMesh):
       if len(possible_guides) > 1:
         print "WARNING: found more than one possible guide"
 
-      if len(possible_guides) == 0:
+      if len(possible_guides) == 0 or not possible_guides[0].UseExactElements:
         # none of the edges are guided
         my_nodes = [nodes[no] for no in node_numbers]
         elements.append(

@@ -104,3 +104,22 @@ def allEqual(sequence):
     if i != item:
       return False
   return True
+
+
+
+
+def decorate(function, list):
+  return map(lambda x: (x, function(x)), list)
+
+
+
+
+def partition(criterion, list):
+  part_true = []
+  part_false = []
+  for i in list:
+    if criterion(i):
+      part_true.append(i)
+    else:
+      part_false.append(i)
+  return part_true, part_false
