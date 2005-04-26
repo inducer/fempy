@@ -1,12 +1,12 @@
 import math
-import tools
+
+import pylinear.array as num
+import pylinear.operation as op
+
 import stopwatch
 import element
 import mesh_function
-import visualization
-import pylinear.matrices as num
-import pylinear.matrix_tools as mtools
-import pylinear.algorithms as algo
+
 
 
 
@@ -14,12 +14,12 @@ import pylinear.algorithms as algo
 def solveSPDSystem(matrix_op, rhs, start_vector = None):
     h,w = matrix_op.shape
     if start_vector is None:
-        x = num.zeros((w,), num.Float)
+        x = num.zeros((w,), matrix_op.typecode())
     else:
-        x = start_vector[:]
+        x = start_vector.copy()
 
-    job = stopwatch.tJob("solve")
-    matrix_inv_op = algo.makeCGMatrixOperator(matrix_op, h * 2)
+    job = stopwatch.Job("solve")
+    matrix_inv_op = op.CGOperator.make(matrix_op)
     matrix_inv_op.apply(rhs, x)
     job.done()
     print "  iterations:", matrix_inv_op.last_iteration_count
@@ -28,7 +28,7 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
     matrix_op.apply(x, residual)
     residual -= rhs
 
-    print "  absolute residual: ", tools.norm2(residual)
+    print "  absolute residual: ", op.norm_2(residual)
     return x
 
 
@@ -58,11 +58,11 @@ def buildStiffnessMatrix(mesh, number_assignment, typecode = num.Float):
     dof_count = len(number_assignment)
     s = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
-    job = stopwatch.tJob("stiffness matrix")
+    job = stopwatch.Job("stiffness matrix")
     for el in mesh.elements():
         nonus = [number_assignment[node] for node in el.nodes()]
-        s.addScatteredSymmetric(
-            nonus, 
+        s.add_scattered(
+            nonus, nonus,
             num.asarray(el.getVolumeIntegralsOverDifferentiatedFormFunctions(),
                         typecode))
 
@@ -77,11 +77,11 @@ def buildMassMatrix(mesh, number_assignment, weight_function, typecode = num.Flo
     dof_count = len(number_assignment)
     m = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
-    job = stopwatch.tJob("mass matrix")
+    job = stopwatch.Job("mass matrix")
     for el in mesh.elements():
         nonus = [number_assignment[node] for node in el.nodes()]
-        m.addScatteredSymmetric(
-            nonus, 
+        m.add_scattered(
+            nonus, nonus,
             num.asarray(el.getVolumeIntegralsOverFormFunctions(weight_function),
                         typecode))
 
@@ -121,7 +121,7 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
 
     b = num.zeros((dof_count,), num.Float)
 
-    job = stopwatch.tJob("rhs")
+    job = stopwatch.Job("rhs")
     for el in mesh.elements():
         this_el_b = el.getVolumeIntegralsOverFormFunction(
             lambda x,formfunc_value: f(x) * formfunc_value)
@@ -132,7 +132,7 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
                 pass
     job.done()
 
-    job = stopwatch.tJob("bcs: dirichlet")
+    job = stopwatch.Job("bcs: dirichlet")
     for node, (boundary_value, other_nodes) in node_constraints.iteritems():
         assert len(other_nodes) == 0
         if boundary_value != 0:
@@ -143,7 +143,7 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
     #visualization.writeGnuplotSparsityPattern(",,s.data", s)
 
     compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
-    s_op = algo.makeMatrixOperator(compiled_s)
+    s_op = op.MatrixOperator.make(compiled_s)
     
     complete_vec = mesh_function.makeCompleteVector(
         complete_number_assignment,
@@ -151,64 +151,6 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
         node_constraints)
     return mesh_function.tMeshFunction(
         mesh, complete_number_assignment, complete_vec)
-
-
-
-
-def shiftAndInvertEigenproblem(sigma, s, m, 
-                               number_of_eigenvalues = 20, 
-                               tolerance = 1e-10,
-                               max_iterations = 0):
-
-    number_of_arnoldi_vectors = 2 * number_of_eigenvalues
-    compiled_m = num.asarray(m, m.typecode(), num.SparseExecuteMatrix)
-
-    m_op = algo.makeMatrixOperator(compiled_m)
-
-    job = stopwatch.tJob("shift matrix")
-    shifted_matrix = num.asarray(s - sigma * m, s.typecode(), num.SparseExecuteMatrix)
-    shifted_matrix_invop = algo.makeUMFPACKMatrixOperator(shifted_matrix)
-    job.done()
-
-    op = algo.composeMatrixOperators(shifted_matrix_invop, m_op)
-
-    job = stopwatch.tJob("arpack rci")
-    results = algo.runArpack(op, m_op, algo.SHIFT_AND_INVERT_GENERALIZED,
-                             sigma, number_of_eigenvalues, number_of_arnoldi_vectors,
-                             algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)
-    job.done()
-  
-    return zip(results.RitzValues, results.RitzVectors)
-
-
-
-
-def shiftAndInvertSymmetricEigenproblem(sigma, s_op, m_op, 
-                               number_of_eigenvalues = 20, 
-                               tolerance = 1e-10,
-                               max_iterations = 0):
-
-    number_of_arnoldi_vectors = 2 * number_of_eigenvalues
-
-    neg_sigma_m_op = algo.composeMatrixOperators(
-        algo.makeScalarMultiplicationMatrixOperator(-sigma, 
-                                                    s_op.shape[0], 
-                                                    s_op.typecode()),
-        m_op)
-    shifted_matrix_op = algo.addMatrixOperators(s_op, neg_sigma_m_op)
-    shifted_matrix_inv_op = algo.makeBiCGSTABMatrixOperator(
-        shifted_matrix_op, shifted_matrix_op.shape[0]*10, tolerance)
-    #shifted_matrix_inv_op.debug_level = 2
-
-    op = algo.composeMatrixOperators(shifted_matrix_inv_op, m_op)
-
-    job = stopwatch.tJob("arpack rci")
-    results = algo.runArpack(op, m_op, algo.SHIFT_AND_INVERT_GENERALIZED,
-                             sigma, number_of_eigenvalues, number_of_arnoldi_vectors,
-                             algo.LARGEST_MAGNITUDE, tolerance, False, max_iterations)
-    job.done()
-  
-    return zip(results.RitzValues, results.RitzVectors)
 
 
 
@@ -252,9 +194,7 @@ def resolveConstraints(constraints):
 
 
 def rayleighQuotient(s, m, vec):
-    sp = mtools.sp
-    mm = num.matrixmultiply
-    return sp(vec, mm(s, vec))/sp(vec, mm(m, vec))
+    return (vec*s*vec.H)/(vec*m*vec.H)
 
 
 
@@ -290,35 +230,40 @@ class tLaplacianEigenproblemSolver:
                 assert given_number_assignment[node] < len(unconstrained_nodes)
                 number_assignment[node] = given_number_assignment[node]
                                 
-        dof_count = len(unconstrained_nodes)
-
         self.FullS = buildStiffnessMatrix(mesh, complete_number_assignment, typecode)
         self.FullM = buildMassMatrix(mesh, complete_number_assignment, g, typecode)
 
         if f is not None:
-            job = stopwatch.tJob("f")
+            job = stopwatch.Job("f")
     
             for el in mesh.elements():
                 nonus = [number_assignment[node] for node in el.nodes()]
-                self.FullS.addScatteredSymmetric(
-                    nonus, 
+                self.FullS.add_scattered(
+                    nonus, nonus,
                     num.asarray(el.getVolumeIntegralsOverFormFunctions(f), typecode))
             job.done()
 
-        self.CurrentConstraints = None
-        self.ConstrainedSOp = self.ConstrainedMOp = None
+        self.FullSEx = num.asarray(self.FullS, flavor=num.SparseExecuteMatrix)
+        self.FullSOp = op.MatrixOperator.make(self.FullSEx)
+
+        self.FullMEx = num.asarray(self.FullM, flavor=num.SparseExecuteMatrix)
+        self.FullMOp = op.MatrixOperator.make(self.FullMEx)
+
+        self.Constraints = None
+        self.ConstrainedSEx = self.ConstrainedMEx = None
+        self.ConstraintOp = self.ConstraintHermOp = None
 
     def stiffnessMatrix(self):
-        return num.asarray(self.FullS, self.FullS.typecode(), num.SparseExecuteMatrix)
+        return self.FullSEx
 
     def massMatrix(self):
-        return num.asarray(self.FullM, self.FullM.typecode(), num.SparseExecuteMatrix)
+        return self.FullMEx
 
     def nodeNumberAssignment(self):
         return self.CompleteNumberAssignment
 
     def currentConstraints(self):
-        return self.CurrentConstraints
+        return self.Constraints
 
     def setupConstraints(self, constraints):
         dof_manager = self.Mesh.dofManager()
@@ -339,55 +284,54 @@ class tLaplacianEigenproblemSolver:
                 uc_nonu = self.NumberAssignment[uc_node]
                 a[uc_nonu, c_nonu] += coeff
         
-        a_ex = num.asarray(a, a.typecode(), num.SparseExecuteMatrix)
-        a_herm_ex = num.hermite(a_ex)
-        a_op = algo.makeMatrixOperator(a_ex)
-        a_herm_op = algo.makeMatrixOperator(a_herm_ex)
+        a_ex = num.asarray(a, flavor=num.SparseExecuteMatrix)
 
-        #mm = num.matrixmultiply
-        #print "A"
-        #mtools.printComplexMatrixInGrid(a)
-        #print "S"
-        #mtools.printComplexMatrixInGrid(self.FullS)
-        #print "M"
-        #mtools.printComplexMatrixInGrid(self.FullM)
-        #print "ASA_H"
-        #mtools.printComplexMatrixInGrid(mm(a, mm(self.FullS, num.hermite(a))))
-        #print "AMA_H"
-        #mtools.printComplexMatrixInGrid(mm(a, mm(self.FullM, num.hermite(a))))
+        job = stopwatch.Job("constrained matrices")
+        self.ConstrainedSEx = a_ex * self.FullSEx * a_ex.H
+        self.ConstrainedMEx = a_ex * self.FullMEx * a_ex.H
+        job.done()
+        self.Constraints = constraints
 
-        s_ex = num.asarray(self.FullS, self.FullS.typecode(), num.SparseExecuteMatrix)
-        s_op = algo.makeMatrixOperator(s_ex)
-
-        m_ex = num.asarray(self.FullM, self.FullM.typecode(), num.SparseExecuteMatrix)
-        m_op = algo.makeMatrixOperator(m_ex)
-
-        self.CurrentConstraints = constraints
-        self.ConstrainedSOp = algo.composeMatrixOperators(
-            algo.composeMatrixOperators(a_op, s_op),
-            a_herm_op)
-        self.ConstrainedMOp = algo.composeMatrixOperators(
-            algo.composeMatrixOperators(a_op, m_op),
-            a_herm_op)
         return a
 
     def solve(self, sigma, number_of_eigenvalues = 20, tolerance = 1e-10,
               warning_threshold = 10):
-        if self.CurrentConstraints is None:
+        if self.Constraints is None:
             raise RuntimeError, "need to set up constraints before solving"
 
-        eigen_result = shiftAndInvertSymmetricEigenproblem(sigma, 
-                                                           self.ConstrainedSOp, 
-                                                           self.ConstrainedMOp,
-                                                           number_of_eigenvalues,
-                                                           tolerance = tolerance)
+        m_op = op.MatrixOperator.make(self.ConstrainedMEx)
 
+        if sigma == 0:
+            m_inv_op = op.CGOperator.make(
+                m_op, 
+                tolerance=tolerance,
+                precon_op=op.SSORPreconditioner.make(self.ConstrainedMEx))
+
+            job = stopwatch.Job("arpack rci")
+            eigen_result = op.operator_eigenvectors(
+                m_inv_op * op.MatrixOperator.make(self.ConstrainedSEx), 
+                number_of_eigenvalues,
+                m_op, 
+                tolerance=tolerance,
+                which_eigenvalues=op.SMALLEST_MAGNITUDE)
+            job.done()
+        else:
+            shifted_mat_ex = self.ConstrainedSEx - sigma*self.ConstrainedMEx
+            job = stopwatch.Job("arpack rci")
+            eigen_result = op.operator_eigenvectors(
+                op.UMFPACKOperator.make(shifted_mat_ex) * m_op, 
+                number_of_eigenvalues,
+                m_op, 
+                sigma, 
+                tolerance=tolerance)
+            job.done()
+  
         result = [(eigenvalue, mesh_function.tMeshFunction(
             self.Mesh,
             self.CompleteNumberAssignment,
             mesh_function.makeCompleteVector(self.CompleteNumberAssignment,
                                              num.conjugate(eigenvector),
-                                             self.CurrentConstraints)))
+                                             self.Constraints)))
                 for eigenvalue, eigenvector in eigen_result]
 
         # perform some invariant checking
@@ -398,19 +342,15 @@ class tLaplacianEigenproblemSolver:
 
         return result
 
-
     def computeEigenpairResidual(self, eigenvalue, mesh_func):
-        if self.CurrentConstraints is None:
+        if self.Constraints is None:
             raise RuntimeError, "need to set up constraints before verifying"
 
-        dof_count = len(self.Mesh.dofManager())- len(self.CurrentConstraints)
+        dof_count = len(self.Mesh.dofManager())- len(self.Constraints)
         vector = num.conjugate(mesh_func.vector()[:dof_count])
 
-        def m_sp(x,y): return mtools.sp(x, algo.applyMatrixOperator(
-            self.ConstrainedMOp, y))
-        def m_norm(x): 
-            return math.sqrt(abs(m_sp(x,x)))
+        def m_sp(x,y): return x * (self.ConstrainedMEx*y.H)
+        def m_norm(x): return math.sqrt(abs(m_sp(x,x)))
 
         return m_norm(
-            algo.applyMatrixOperator(self.ConstrainedSOp, vector)
-            - eigenvalue * algo.applyMatrixOperator(self.ConstrainedMOp, vector))
+            self.ConstrainedSEx*vector - eigenvalue * self.ConstrainedMEx*vector)

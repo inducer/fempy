@@ -1,6 +1,6 @@
 import math
 
-import pylinear.matrices as num
+import pylinear.array as num
 
 import fempy
 import fempy.mesh

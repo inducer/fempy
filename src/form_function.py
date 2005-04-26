@@ -1,4 +1,4 @@
-import pylinear.matrices as num
+import pylinear.array as num
 import pylinear.linear_algebra as la
 import expression_operators as eo
 import expression

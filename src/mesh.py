@@ -1,6 +1,5 @@
-import pylinear.matrices as num
-import pylinear.linear_algebra as la
-import pylinear.matrix_tools as mtools
+import pylinear.array as num
+import pylinear.operation as op
 import element
 import expression
 import pyangle
@@ -72,18 +71,18 @@ class tShapeSection:
         a,b = i.Interval
         start_point = i.evaluateToVector(a)
         if last_point is not None:
-          dtl, alpha = tools.distanceToLine(last_point, start_point-last_point, point)
+          dtl, alpha = tools.distance_to_line(last_point, start_point-last_point, point)
           if -relative_threshold <= alpha <= 1+relative_threshold and \
-               dtl <= tools.norm2(start_point-last_point) * relative_threshold:
+               dtl <= op.norm_2(start_point-last_point) * relative_threshold:
             return True
         if i.containsPoint(point, relative_threshold):
           return True
         last_point = i.endPoint()
       else:
         if last_point is not None:
-          dtl, alpha = tools.distanceToLine(last_point, i-last_point, point)
+          dtl, alpha = tools.distance_to_line(last_point, i-last_point, point)
           if -relative_threshold <= alpha <= 1+relative_threshold and \
-               dtl <= tools.norm2(i-last_point) * relative_threshold:
+               dtl <= op.norm_2(i-last_point) * relative_threshold:
             return True
         last_point = i
     return False
@@ -170,7 +169,7 @@ class tOneDimensionalMesh(tMesh):
     tMesh.__init__(self)
     a_vec = num.array([a], num.Float)
     b_vec = num.array([b], num.Float)
-    points = mtools.linspace(a_vec, b_vec, n)
+    points = op.linspace(a_vec, b_vec, n)
 
     self.DOFManager.registerNode(0, points[0], left_tracking_id)
     for i, p in list(enumerate(points))[1:-1]:
@@ -203,10 +202,10 @@ class tInverseDeformation:
     def newton_func(x):
       return self.F(x) - y
     try:
-      linear_inverse = num.matrixmultiply(self.MatrixInverse, y - self.NC0)
-      return tools.findVectorZeroByNewton(newton_func, 
-                                          self.FPrime, 
-                                          linear_inverse)
+      linear_inverse = self.MatrixInverse*(y - self.NC0)
+      return tools.find_vector_zero_by_newton(newton_func, 
+                                              self.FPrime, 
+                                              linear_inverse)
     except RuntimeError:
       print "WARNING: Transform inversion failed"
       return linear_inverse
@@ -339,8 +338,8 @@ class _tPyangleMesh(tMesh):
         # calculate the forward linear transform 
         node_coords = [node.Coordinates for node in my_nodes]
         nc0 = node_coords[0]
-        mat = num.transpose(num.array([ n - nc0 for n in node_coords[1:] ]))
-        matinv = la.inverse(mat)
+        mat = num.array([ n - nc0 for n in node_coords[1:] ]).T
+        matinv = 1/mat
 
         variables = [e_x, e_y]
 
@@ -475,7 +474,7 @@ class _tTwoDimensionalRefinedMesh(_tPyangleMesh):
 
 # Tools -----------------------------------------------------------------
 def getBoundaryEdges(mesh):
-  result = tools.tDictionaryWithDefault(lambda x: [])
+  result = tools.DictionaryWithDefault(lambda x: [])
   for el in mesh.elements():
     #print el.transformToReal(nd.Coordinates)
     try:

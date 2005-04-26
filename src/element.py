@@ -1,14 +1,12 @@
 import math
 
-import pylinear.matrices as num
+import pylinear.array as num
 import pylinear.linear_algebra as la
+import pylinear.operation as op
 
 import integration
 import expression
 import form_function
-import visualization
-import tools
-import mesh_function
 
 class tFiniteElementError(Exception):
     def __init__(self, value):
@@ -173,7 +171,7 @@ class tFiniteElement(object):
         """
         raise NotImplementedError
 
-    def getVolumeIntegralsOver(self, f, coefficients):
+    def getVolumeIntegralOver(self, f, coefficients):
         """This functions returns the value of
 
         \int_{Element} f((x,y), u(x,y)) d(x,y)
@@ -376,21 +374,13 @@ class tOneDimensionalFiniteElement(tFiniteElement):
         return influence_matrix
 
     def getVolumeIntegralOver(self, f, coefficients):
-        ff_count = len(self.FormFunctions)
-        influence_matrix = num.zeros((ff_count,), typecode)
         zipped = zip(coefficients, self.FormFunctions)
-
-        def functionInIntegral(p):
+        def functionInIntegral(point):
             ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
-            return f(p, ff_comb)
+            return f(point , ff_comb)
 
-        for row in range(0, ff_count):
-            rf = self.FormFunctions[row]
-            integral = self.Length * \
-                       integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
-                                                      functionInIntegral)
-            influence_matrix[row] = integral
-        return influence_matrix
+        return self.Length * integration.integrateAlongLine(
+            self.RawOrigin, self.RawEnd, functionInIntegral)
 
     def getVisualizationData(self, solution_mesh_func, vis_data):
         raise NotImplementedError
@@ -542,7 +532,7 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
         # verify validity
         if False:
             def inverseNorm(f, inverse_f, point):
-                return tools.norm2(point - inverse_f(f(point)))
+                return op.norm_2(point - inverse_f(f(point)))
             inverse_norms = [ 
                 inverseNorm(self.transformToReal, self.transformToUnit, num.array(point)) 
                 for point in 

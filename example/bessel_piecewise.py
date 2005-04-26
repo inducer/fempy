@@ -1,4 +1,4 @@
-import pylinear.matrix_tools as mtools
+import pylinear.operation as op
 import fempy.mesh
 import fempy.geometry as geometry
 import fempy.solver as solver
@@ -7,10 +7,10 @@ import fempy.visualization as visualization
 def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
     return area >= 3e-2
 
-alpha_1 = 40; alpha_2 = 1
+alpha_1 = 1; alpha_2 = 40
 
 def alpha(x):
-    if mtools.norm2(x) < 0.5:
+    if op.norm_2(x) < 0.5:
         return alpha_1
     else:
         return alpha_2

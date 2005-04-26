@@ -1,11 +1,5 @@
-import weakref
-import element
-import pylinear.matrices as num
-import pylinear.matrix_tools as mtools
+import pylinear.array as num
 import pylinear.linear_algebra as la
-import pylinear.algorithms as algo
-import stopwatch
-import tools
 
 
 
@@ -187,7 +181,7 @@ def discretizeFunctionByIntegrals(mesh, f, mass_matrix, number_assignment,
         for node, vol_int in zip(el.nodes(), vol_ints):
             beta[number_assignment[node]] += vol_int
 
-    alpha = mtools.solve_linear_system_cg(mass_matrix, beta)
+    alpha = mass_matrix <<num.solve>> beta
     
     return tMeshFunction(mesh, number_assignment, alpha)
 
@@ -223,4 +217,4 @@ class tScalarProductCalculator:
             cast_spi = num.asarray(self.MassMatrix, tc, num.SparseExecuteMatrix)
             self.CastMassMatrix[tc] = cast_spi
 
-        return mtools.sp(v1, num.matrixmultiply(cast_spi, v2))
+        return v1 * (cast_spi * v2.H)

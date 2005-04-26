@@ -1,27 +1,25 @@
-import math
-import pylinear.matrices as num
-import pylinear.linear_algebra as la
-import pylinear.matrix_tools as mtools
+import pylinear.array as num
+import pylinear.toybox as toybox
 
 
 
 
-def estimateOrderOfConvergence(abscissae, errors):
-  """Assuming that abscissae and errors are connected by a law of the form
+def estimate_order_of_convergence(abscissae, errors):
+    """Assuming that abscissae and errors are connected by a law of the form
 
-  error = constant * abscissa ^ (-order),
+    error = constant * abscissa ^ (-order),
 
-  this function finds, in a least-squares sense, the best approximation of
-  constant and order for the given data set. It returns a tuple (constant, order).
-  Both inputs must be PyLinear vectors.
-  """
+    this function finds, in a least-squares sense, the best approximation of
+    constant and order for the given data set. It returns a tuple (constant, order).
+    Both inputs must be PyLinear vectors.
+    """
 
-  assert len(abscissae) == len(errors)
-  if len(abscissae) <= 1:
-    raise RuntimeError, "Need more than one value to guess order of convergence."
+    assert len(abscissae) == len(errors)
+    if len(abscissae) <= 1:
+        raise RuntimeError, "Need more than one value to guess order of convergence."
 
-  coefficients = mtools.fit_polynomial(num.log10(abscissae), num.log10(errors), 1)
-  return 10**coefficients[0], -coefficients[1]
+    coefficients = toybox.fit_polynomial(num.log10(abscissae), num.log10(errors), 1)
+    return 10**coefficients[0], -coefficients[1]
 
 
   
@@ -29,39 +27,39 @@ def estimateOrderOfConvergence(abscissae, errors):
 
 
 
-class tEOCRecorder:
-  def __init__(self):
-    self.History = []
+class EOCRecorder:
+    def __init__(self):
+        self.History = []
 
-  def history(self):
-    return self.History
+    def history(self):
+        return self.History
 
-  def addDataPoint(self, abscissa, error):
-    self.History.append((abscissa, error))
+    def add_data_point(self, abscissa, error):
+        self.History.append((abscissa, error))
 
-  def estimateOrderOfConvergence(self, gliding_mean = None):
-    abscissae = num.array([ a for a,e in self.History ])
-    errors = num.array([ e for a,e in self.History ])
+    def estimate_order_of_convergence(self, gliding_mean = None):
+        abscissae = num.array([ a for a,e in self.History ])
+        errors = num.array([ e for a,e in self.History ])
 
-    size = len(abscissae)
-    if gliding_mean is None:
-      gliding_mean = size
+        size = len(abscissae)
+        if gliding_mean is None:
+            gliding_mean = size
 
-    data_points = size - gliding_mean + 1
-    result = num.zeros((data_points, 2), num.Float)
-    for i in range(data_points):
-      result[i,0], result[i,1] = estimateOrderOfConvergence(
-        abscissae[i:i+gliding_mean], errors[i:i+gliding_mean])
-    return result
+        data_points = size - gliding_mean + 1
+        result = num.zeros((data_points, 2), num.Float)
+        for i in range(data_points):
+            result[i,0], result[i,1] = estimate_order_of_convergence(
+                abscissae[i:i+gliding_mean], errors[i:i+gliding_mean])
+        return result
 
-  def writeGnuplotFile(self, filename):
-    outfile = file(filename, "w")
-    for absc, err in self.History:
-      outfile.write("%f %f\n" % (absc, err))
-    result = self.estimateOrderOfConvergence()
-    const = result[0,0]
-    order = result[0,1]
-    outfile.write("\n")
-    for absc, err in self.History:
-      outfile.write("%f %f\n" % (absc, const * absc**(-order)))
+    def write_gnuplot_file(self, filename):
+        outfile = file(filename, "w")
+        for absc, err in self.History:
+            outfile.write("%f %f\n" % (absc, err))
+        result = self.estimate_order_of_convergence()
+        const = result[0,0]
+        order = result[0,1]
+        outfile.write("\n")
+        for absc, err in self.History:
+            outfile.write("%f %f\n" % (absc, const * absc**(-order)))
 

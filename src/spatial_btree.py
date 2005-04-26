@@ -1,4 +1,4 @@
-import pylinear.matrices as num
+import pylinear.array as num
 import tools
 
 

@@ -3,7 +3,7 @@ import fempy
 import fempy.mesh
 import fempy.geometry
 import fempy.expression_operators as eo
-import pylinear.matrices as num
+import pylinear.array as num
 
 
 

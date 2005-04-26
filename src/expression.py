@@ -1,5 +1,5 @@
 import pattern
-import pylinear.matrices as num
+import pylinear.array as num
 import math
 import sets
 import expression_operators as eo

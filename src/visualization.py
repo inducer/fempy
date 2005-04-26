@@ -1,6 +1,4 @@
-import pylinear.matrices as num
-import stopwatch
-import element
+import pylinear.array as num
 import mesh_function
 import tools
 
@@ -148,7 +146,7 @@ def _visualizationDriver(driver, filename, info):
 def _getVisualizationData(mesh_func):
     dof_manager = mesh_func.mesh().dofManager()
 
-    nonu_lookup = tools.reverseDictionary(mesh_func.numberAssignment())
+    nonu_lookup = tools.reverse_dictionary(mesh_func.numberAssignment())
 
     nodes = [nonu_lookup[nonu] for nonu in range(len(dof_manager))]
     node_values = list(mesh_func.vector())

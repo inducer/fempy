@@ -1,5 +1,5 @@
-import pylinear.matrices as num
-import pylinear.matrix_tools as mtools
+import pylinear.array as num
+import pylinear.operation as op
 import math
 import tools
 
@@ -119,14 +119,14 @@ def integrateOnUnitInterval4(f):
 
 def integrateAlongLine(point1, point2, f):
     direction = point2 - point1
-    return mtools.norm2(direction)\
+    return op.norm_2(direction)\
            * integrateOnUnitInterval4(lambda x: f(point1 + x * direction))
 
 
 
 
 def integrateOnTwoDimensionalGrid(grid, f):
-    dims = grid.gridIntervalCounts()
+    dims = grid.chop_upper_boundary().grid_point_counts()
     assert len(dims) == 2
     dim1 = dims[0]
     dim2 = dims[1]
@@ -139,5 +139,5 @@ def integrateOnTwoDimensionalGrid(grid, f):
     for j in range(1,dim2):
         result += .5 * (f((0,j))+f((dim1,j)))
 
-    gv = grid.gridVectors()
-    return result * tools.getParallelogramVolume(gv)
+    gv = grid.grid_vectors()
+    return result * tools.get_parallelogram_volume(gv)

@@ -1,6 +1,6 @@
 import math
 
-import pylinear.matrices as num
+import pylinear.array as num
 
 import fempy
 import fempy.mesh
@@ -28,4 +28,4 @@ grid_vectors = [num.array([2,0], num.Float),
                 num.array([0,2], num.Float)]
 mesh = fempy.mesh.tTwoDimensionalMesh(
   [fempy.mesh.tShapeSection(fempy.geometry.getParallelogram(grid_vectors), "dirichlet")])
-test_tools.adaptiveDemo(sol, mesh, max_iterations = 15)
+test_tools.adaptiveDemo(sol, mesh, max_iterations = 13)

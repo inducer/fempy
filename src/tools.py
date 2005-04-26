@@ -1,21 +1,20 @@
 import math, sys, operator, types
 
-import pylinear.matrices as num
+import pylinear.array as num
 import pylinear.linear_algebra as la
-import pylinear.matrix_tools as mtools
+import pylinear.operation as op
+import pylinear.toybox as toybox
 
 
 
 
-norm2 = mtools.norm2
-norm2squared = mtools.norm2squared
-delta = mtools.delta
+delta = toybox.delta
 
 
 
 
 # Data structures ------------------------------------------------------------
-class tReference(object):
+class Reference(object):
     def __init__( self, value ):
         self.V = value
     def get( self ):
@@ -26,7 +25,7 @@ class tReference(object):
 
 
 
-class tFunctionValueCache(object):
+class FunctionValueCache(object):
     def __init__(self, function):
         self.Function = function
         self.ResultMap = {}
@@ -42,7 +41,7 @@ class tFunctionValueCache(object):
     
 
 
-class tLexicographicSequencer(object):
+class LexicographicSequencer(object):
     def __init__(self, container, limits):
         self._Container = container
         self._Dimensions = [high-low for low, high in limits]
@@ -51,7 +50,7 @@ class tLexicographicSequencer(object):
     def __len__(self):
         return product(self._Dimensions)
 
-    def translateSingleIndex(self, index):
+    def translate_single_index(self, index):
         indices = []
         remaining_size = len(self)
         if not (0 <= index < remaining_size):
@@ -62,21 +61,21 @@ class tLexicographicSequencer(object):
             indices.append(quotient + self._Low[i])
         return tuple(indices)
 
-    def getAllIndices(self):
-        return [self.translateSingleIndex(i) for i in range(len(self))]
+    def get_all_indices(self):
+        return [self.translate_single_index(i) for i in range(len(self))]
 
     def __getitem__(self, index):
-        return self._Container[self.translateSingleIndex(index)]
+        return self._Container[self.translate_single_index(index)]
 
   
 
 
-class tGrid(object):
+class Grid(object):
     def __init__(self, origin, grid_vectors):
         self._Origin = origin
         self._GridVectors = grid_vectors
 
-    def gridVectors(self):
+    def grid_vectors(self):
         return self._GridVectors
 
     def __getitem__(self, index):
@@ -85,14 +84,14 @@ class tGrid(object):
             result += i * gv
         return result
 
-    def findClosestGridPointIndex(self, point):
-        tmat = num.transpose(num.array(self._GridVectors))
-        float_coords = la.solve_linear_equations(tmat, point - self._Origin)
+    def find_closest_grid_point_index(self, point):
+        tmat = num.array(self._GridVectors).T
+        float_coords = tmat <<num.solve> (point - self._Origin)
         return tuple([int(round(c)) for c in float_coords])
 
-    def interpolateGridPointIndex(self, point):
-        tmat = num.transpose(num.array(self._GridVectors))
-        float_coords = la.solve_linear_equations(tmat, point - self._Origin)
+    def interpolate_prid_point_index(self, point):
+        tmat = num.array(self._GridVectors).T
+        float_coords = tmat <<num.solve> (point - self._Origin)
         rounded_down_int_coords = [int(math.floor(c)) for c in float_coords]
         neighbors = [rounded_down_int_coords]
         for d in range(len(self._GridVectors)):
@@ -113,7 +112,7 @@ class tGrid(object):
 
 
 
-class tFiniteGrid(tGrid):
+class FiniteGrid(Grid):
     def __init__(self, origin, grid_vectors, limits):
         """Instantiates a finite grid. The limits are specified as a
         list of tuples of (low, high) values, one for each grid vector.
@@ -126,89 +125,89 @@ class tFiniteGrid(tGrid):
         """
         assert len(grid_vectors) == len(limits)
         
-        tGrid.__init__(self, origin, grid_vectors)
+        Grid.__init__(self, origin, grid_vectors)
         self._Limits = limits
 
     def limits(self):
         return self._Limits
 
     def __iter__(self):
-        return iter(self.asSequence().getAllIndices())
+        return iter(self.as_sequence().get_all_indices())
 
     def iterkeys(self):
         return self.__iter__()
 
-    def gridPointCounts(self):
+    def grid_point_counts(self):
         """Returns the number of grid intervals in each direction.
         """
         return [high-low for low, high in self._Limits]
 
-    def gridPointCount(self):
+    def grid_point_count(self):
         """Returns the number of grid intervals in each direction.
         """
-        return product(self.gridPointCounts())
+        return product(self.grid_point_counts())
 
-    def isWithinBounds(self, key):
+    def is_within_bounds(self, key):
         for el, (low, high) in zip(key, self._Limits):
             if not (low <= el < high):
                 return False
         return True
 
-    def asSequence(self):
-        return tLexicographicSequencer(self, self._Limits)
+    def as_sequence(self):
+        return LexicographicSequencer(self, self._Limits)
 
-    def chopUpperBoundary(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low, high-by) for low, high in self._Limits])
+    def chop_upper_boundary(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low, high-by) for low, high in self._Limits])
 
-    def chopLowerBoundary(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low+by, high) for low, high in self._Limits])
+    def chop_lower_boundary(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low+by, high) for low, high in self._Limits])
 
-    def chopBothBoundaries(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low+by, high-by) for low, high in self._Limits])
+    def chop_both_boundaries(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low+by, high-by) for low, high in self._Limits])
 
-    def enlargeAtUpperBoundary(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low, high+by) for low, high in self._Limits])
+    def enlarge_at_upper_boundary(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low, high+by) for low, high in self._Limits])
 
-    def enlargeAtLowerBoundary(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low-by, high) for low, high in self._Limits])
+    def enlarge_at_lower_boundary(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low-by, high) for low, high in self._Limits])
 
-    def enlargeAtBothBoundaries(self, by = 1):
-        return tFiniteGrid(self._Origin, self._GridVectors,
-                           [(low-by, high+by) for low, high in self._Limits])
+    def enlarge_at_both_boundaries(self, by = 1):
+        return FiniteGrid(self._Origin, self._GridVectors,
+                          [(low-by, high+by) for low, high in self._Limits])
 
-    def reducePeriodically(self, key):
+    def reduce_periodically(self, key):
         return tuple([
             el % (high-low) for el, (low, high) in zip(key, self._Limits)])
 
-    def reduceToClosest(self, key):
+    def reduce_to_closest(self, key):
         return tuple([
             max(min(high-1, el), low) for el, (low, high) in zip(key, self._Limits)])
   
 
 
 
-def makeSubdivisionGrid(origin, grid_vectors, limits):
+def make_subdivision_grid(origin, grid_vectors, limits):
     interval_counts = [high - low - 1 for low, high in limits]
     my_gvs = [gv / float(ivs) for gv, ivs in zip(grid_vectors, interval_counts)]
-    return tFiniteGrid(origin, my_gvs, limits)
+    return FiniteGrid(origin, my_gvs, limits)
     
 
 
 
-def makeCellCenteredGrid(origin, grid_vectors, limits):
+def make_cell_centered_grid(origin, grid_vectors, limits):
     my_gvs = [gv / float(high - low) for gv, (low, high) in zip(grid_vectors, limits)]
-    return tFiniteGrid(origin + generalSum(my_gvs) * 0.5,
+    return FiniteGrid(origin + general_sum(my_gvs) * 0.5,
                        my_gvs, limits)
     
 
 
 
-class tDictionaryWithDefault(object):
+class DictionaryWithDefault(object):
     def __init__(self, default_value_generator, start = {}):
         self._Dictionary = dict(start)
         self._DefaultGenerator = default_value_generator
@@ -238,7 +237,7 @@ class tDictionaryWithDefault(object):
 
 
     
-class tFakeList(object):
+class FakeList(object):
     def __init__(self, f, length):
         self._Length = length
         self._Function = f
@@ -256,13 +255,13 @@ class tFakeList(object):
 
 
 
-class tDependentDictionary(object):
+class DependentDictionary(object):
     def __init__(self, f, start = {}):
         self._Function = f
         self._Dictionary = start.copy()
 
     def copy(self):
-        return tDependentDictionary(self._Function, self._Dictionary)
+        return DependentDictionary(self._Function, self._Dictionary)
 
     def __contains__(self, key):
         try:
@@ -295,23 +294,23 @@ class tDependentDictionary(object):
 
 
 
-def addTuples(t1, t2):
+def add_tuples(t1, t2):
     return tuple([t1v + t2v for t1v, t2v in zip(t1, t2)])
 
-def negateTuple(t1):
+def negate_tuple(t1):
     return tuple([-t1v for t1v in t1])
 
 
 
 
 # Numerical algorithms -------------------------------------------------------
-def absSquared(x):
+def abs_squared(x):
     return (x.conjugate() * x).real
 
 
 
 
-def findZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
+def find_zero_by_newton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
     it = 0
     while it < maxit:
         it += 1
@@ -324,12 +323,12 @@ def findZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
 
 
 
-def findVectorZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
+def find_vector_zero_by_newton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
     it = 0
     while it < maxit:
         it += 1
         f_value = f(x_start)
-        if norm2(f_value) < tolerance:
+        if op.norm_2(f_value) < tolerance:
             return x_start
         x_start -= num.matrixmultiply(la.inverse(fprime(x_start)), f_value)
     raise RuntimeError, "Newton iteration failed, a zero was not found"
@@ -337,24 +336,24 @@ def findVectorZeroByNewton(f, fprime, x_start, tolerance = 1e-12, maxit = 10):
 
 
 
-def distanceToLine(start_point, direction, point):
+def distance_to_line(start_point, direction, point):
     # Ansatz: start_point + alpha * direction 
     # <start_point + alpha * direction - point, direction> = 0!
     alpha = - num.innerproduct(start_point - point, direction) / \
-            norm2squared(direction)
+            op.norm_2_squared(direction)
     foot_point = start_point + alpha * direction
-    return norm2(point - foot_point), alpha
+    return op.norm_2(point - foot_point), alpha
 
 
 
 
-def angleCosineBetweenVectors(vec1, vec2):
-    return mtools.sp(vec1, vec2) / (norm2(vec1)*norm2(vec2))
+def angle_cosine_between_vectors(vec1, vec2):
+    return vec1*vec2.H / (op.norm_2(vec1)*op.norm_2(vec2))
 
 
 
 
-def interpolateVectorList(vectors, inbetween_points):
+def interpolate_vector_list(vectors, inbetween_points):
     if len(vectors) == 0:
         return []
 
@@ -372,7 +371,7 @@ def interpolateVectorList(vectors, inbetween_points):
 
 
 
-def makeRotationMatrix(radians, n = 2, axis1 = 0, axis2 = 1, typecode = num.Float):
+def make_rotation_matrix(radians, n = 2, axis1 = 0, axis2 = 1, typecode = num.Float):
     mat = num.identity(n, typecode)
     mat[axis1,axis1] = math.cos(radians)
     mat[axis2,axis1] = math.sin(radians)
@@ -383,7 +382,7 @@ def makeRotationMatrix(radians, n = 2, axis1 = 0, axis2 = 1, typecode = num.Floa
 
 
 
-def getParallelogramVolume(vectors):
+def get_parallelogram_volume(vectors):
     if vectors[0].shape[0] == 2:
         return vectors[0][0] * vectors[1][1] - vectors[1][0] * vectors[0][1]
     else:
@@ -392,7 +391,7 @@ def getParallelogramVolume(vectors):
 
 
 
-def unitVector(i, dim, typecode = num.Float):
+def unit_vector(i, dim, typecode = num.Float):
     uvec = num.zeros((dim,), typecode)
     uvec[i] = 1
     return uvec
@@ -409,24 +408,24 @@ def conjugate(value):
 
 
 
-class tSparseVector(tDictionaryWithDefault):
+class SparseVector(DictionaryWithDefault):
     def __init__(self):
-        tDictionaryWithDefault.__init__(self, lambda x: 0.)
+        DictionaryWithDefault.__init__(self, lambda x: 0.)
 
-    def addTo(self, other, factor = 1.):
+    def add_to(self, other, factor = 1.):
         for key in self:
             other[key] += factor * self[key]
 
-    def addToMatrixColumn(self, matrix, column, factor = 1.):
+    def add_to_matrix_column(self, matrix, column, factor = 1.):
         for key in self:
             matrix[key, column] += factor * self[key]
 
-    def addToMatrixRow(self, matrix, row, factor = 1.):
+    def add_to_matrix_row(self, matrix, row, factor = 1.):
         for key in self:
             matrix[row, key] += factor * self[key]
 
     def conjugate(self):
-        result = tSparseVector()
+        result = SparseVector()
         for key in self:
             result[key] = (self[key]+0j).conjugate()
         return result
@@ -456,13 +455,13 @@ class tSparseVector(tDictionaryWithDefault):
         return result
 
     def __mul__(self, other):
-        result = tSparseVector()
+        result = SparseVector()
         for key in self:
             result[key] = other * self[key]
         return result
 
     def __rmul__(self, other):
-        result = tSparseVector()
+        result = SparseVector()
         for key in self:
             result[key] = other * self[key]
         return result
@@ -470,14 +469,14 @@ class tSparseVector(tDictionaryWithDefault):
 
 
 
-class tLinearSystemOfEquations:
+class LinearSystemOfEquations:
     # UNTESTED.
     def __init__(self):
         self.Equations = []
         self.SymbolMap = {}
         pass
 
-    def registerEquation(self, coeffs_and_symbols, rhs):
+    def register_equation(self, coeffs_and_symbols, rhs):
         self.Equations.append(([
             (coeff, self.SymbolMap.setdefault(symbol, len(self.SymbolMap)))
             for coeff, symbol  in coeffs_and_symbols], rhs))
@@ -498,7 +497,7 @@ class tLinearSystemOfEquations:
 
 
 
-def write1DGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
+def write_1d_gnuplot_graph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
     h = float(b - a)/steps
     gnuplot_file = file(fname, "w")
 
@@ -514,7 +513,7 @@ def write1DGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = Fal
     if progress:
         sys.stdout.write("\n")
 
-def write1DGnuplotGraphs(f, a, b, steps = 100, fnames = None, progress = False):
+def write_1d_gnuplot_graphs(f, a, b, steps = 100, fnames = None, progress = False):
     h = float(b - a)/steps
     if not fnames:
         result_count = len(f(a))
@@ -534,7 +533,7 @@ def write1DGnuplotGraphs(f, a, b, steps = 100, fnames = None, progress = False):
 
 
 
-def writeGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
+def write_gnuplot_graph(f, a, b, steps = 100, fname = ",,f.data", progress = False):
     h = float(b - a)/steps
     gnuplot_file = file(fname, "w")
 
@@ -562,140 +561,140 @@ def writeGnuplotGraph(f, a, b, steps = 100, fname = ",,f.data", progress = False
 
 
 
-class tDictionaryOfArithmeticTypes(dict):
+class DictionaryOfArithmeticTypes(dict):
     """Allows arithmetic operations on dictionaries
     which propagate to its elements.
     """
 
-    def assertSameKeys(self, other):
+    def assert_same_keys(self, other):
         for key in self:
             assert key in other
         for key in other:
             assert key in self
 
-    def unaryOperator(self, operator):
-        result = tDictionaryOfArithmeticTypes()
+    def unary_operator(self, operator):
+        result = DictionaryOfArithmeticTypes()
         for key in self:
             result[key] = operator(self[key])
         return result
 
-    def binaryOperator(self, other, operator):
+    def binary_operator(self, other, operator):
         try:
-            self.assertSameKeys(other)
-            result = tDictionaryOfArithmeticTypes()
+            self.assert_same_keys(other)
+            result = DictionaryOfArithmeticTypes()
             for key in self:
                 result[key] = operator(self[key], other[key])
             return result
         except TypeError:
-            result = tDictionaryOfArithmeticTypes()
+            result = DictionaryOfArithmeticTypes()
             for key in self:
                 result[key] = operator(self[key], other)
             return result
 
-    def reverseBinaryOperator(self, other, operator):
+    def reverse_binary_operator(self, other, operator):
         try:
-            self.assertSameKeys(other)
-            result = tDictionaryOfArithmeticTypes()
+            self.assert_same_keys(other)
+            result = DictionaryOfArithmeticTypes()
             for key in self:
                 result[key] = operator(other[key], self[key])
             return result
         except TypeError:
-            result = tDictionaryOfArithmeticTypes()
+            result = DictionaryOfArithmeticTypes()
             for key in self:
                 result[key] = operator(other, self[key])
             return result
 
-    def __neg__(self): return self.unaryOperator(operator.neg)
-    def __pos__(self): return self.unaryOperator(operator.pos)
-    def __abs__(self): return self.unaryOperator(operator.abs)
-    def __invert__(self): return self.unaryOperator(operator.invert)
+    def __neg__(self): return self.unary_operator(operator.neg)
+    def __pos__(self): return self.unary_operator(operator.pos)
+    def __abs__(self): return self.unary_operator(operator.abs)
+    def __invert__(self): return self.unary_operator(operator.invert)
 
-    def __add__(self, other): return self.binaryOperator(other, operator.add)
-    def __sub__(self, other): return self.binaryOperator(other, operator.sub)
-    def __mul__(self, other): return self.binaryOperator(other, operator.mul)
-    def __div__(self, other): return self.binaryOperator(other, operator.div)
-    def __mod__(self, other): return self.binaryOperator(other, operator.mod)
-    def __pow__(self, other): return self.binaryOperator(other, operator.pow)
-    def __lshift__(self, other): return self.binaryOperator(other, operator.lshift)
-    def __rshift__(self, other): return self.binaryOperator(other, operator.rshift)
-    def __and__(self, other): return self.binaryOperator(other, operator.and_)
-    def __or__(self, other): return self.binaryOperator(other, operator.or_)
-    def __xor__(self, other): return self.binaryOperator(other, operator.xor)
+    def __add__(self, other): return self.binary_operator(other, operator.add)
+    def __sub__(self, other): return self.binary_operator(other, operator.sub)
+    def __mul__(self, other): return self.binary_operator(other, operator.mul)
+    def __div__(self, other): return self.binary_operator(other, operator.div)
+    def __mod__(self, other): return self.binary_operator(other, operator.mod)
+    def __pow__(self, other): return self.binary_operator(other, operator.pow)
+    def __lshift__(self, other): return self.binary_operator(other, operator.lshift)
+    def __rshift__(self, other): return self.binary_operator(other, operator.rshift)
+    def __and__(self, other): return self.binary_operator(other, operator.and_)
+    def __or__(self, other): return self.binary_operator(other, operator.or_)
+    def __xor__(self, other): return self.binary_operator(other, operator.xor)
 
-    def __radd__(self, other): return self.reverseBinaryOperator(other, operator.add)
-    def __rsub__(self, other): return self.reverseBinaryOperator(other, operator.sub)
-    def __rmul__(self, other): return self.reverseBinaryOperator(other, operator.mul)
-    def __rdiv__(self, other): return self.reverseBinaryOperator(other, operator.div)
-    def __rmod__(self, other): return self.reverseBinaryOperator(other, operator.mod)
-    def __rpow__(self, other): return self.reverseBinaryOperator(other, operator.pow)
-    def __rlshift__(self, other): return self.reverseBinaryOperator(other, operator.lshift)
-    def __rrshift__(self, other): return self.reverseBinaryOperator(other, operator.rshift)
-    def __rand__(self, other): return self.reverseBinaryOperator(other, operator.and_)
-    def __ror__(self, other): return self.reverseBinaryOperator(other, operator.or_)
-    def __rxor__(self, other): return self.reverseBinaryOperator(other, operator.xor)
+    def __radd__(self, other): return self.reverse_binary_operator(other, operator.add)
+    def __rsub__(self, other): return self.reverse_binary_operator(other, operator.sub)
+    def __rmul__(self, other): return self.reverse_binary_operator(other, operator.mul)
+    def __rdiv__(self, other): return self.reverse_binary_operator(other, operator.div)
+    def __rmod__(self, other): return self.reverse_binary_operator(other, operator.mod)
+    def __rpow__(self, other): return self.reverse_binary_operator(other, operator.pow)
+    def __rlshift__(self, other): return self.reverse_binary_operator(other, operator.lshift)
+    def __rrshift__(self, other): return self.reverse_binary_operator(other, operator.rshift)
+    def __rand__(self, other): return self.reverse_binary_operator(other, operator.and_)
+    def __ror__(self, other): return self.reverse_binary_operator(other, operator.or_)
+    def __rxor__(self, other): return self.reverse_binary_operator(other, operator.xor)
 
     def __iadd__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] += other[key]
         return self
 
     def __isub__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] -= other[key]
         return self
 
     def __imul__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] *= other[key]
         return self
 
     def __idiv__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] /= other[key]
         return self
 
     def __imod__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] %= other[key]
         return self
 
     def __ipow__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] **= other[key]
         return self
 
     def __ilshift__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] <<= other[key]
         return self
 
     def __irshift__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] >>= other[key]
         return self
 
     def __iand__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] &= other[key]
         return self
 
     def __ior__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] |= other[key]
         return self
 
     def __ixor__(self, other): 
-        self.assertSameKeys(other)
+        self.assert_same_keys(other)
         for key in self: 
             self[key] ^= other[key]
         return self
@@ -712,7 +711,7 @@ def flatten(list):
 
 
 
-def sumOver(function, arguments):
+def sum_over(function, arguments):
     result = 0
     for i in arguments:
         result += function(i)
@@ -721,13 +720,13 @@ def sumOver(function, arguments):
 
 
 
-def generalSum(sequence):
+def general_sum(sequence):
     return reduce(operator.add, sequence)
 
 
 
 
-def linearCombination(coefficients, vectors):
+def linear_combination(coefficients, vectors):
     result = coefficients[0] * vectors[0]
     for c,v in zip(coefficients, vectors)[1:]:
         result += c*v
@@ -737,11 +736,11 @@ def linearCombination(coefficients, vectors):
 
 
 def average(sequence):
-    return generalSum(sequence)/float(len(sequence))
+    return general_sum(sequence)/float(len(sequence))
 
 
 
-def allEqual(sequence):
+def all_equal(sequence):
     item = sequence[0]
     for i in sequence[1:]:
         if i != item:
@@ -804,7 +803,7 @@ def argmax(list, f = lambda x: x):
 
 
 
-def cartesianProduct(list1, list2):
+def cartesian_product(list1, list2):
     result = []
     for i in list1:
         for j in list2:
@@ -813,7 +812,7 @@ def cartesianProduct(list1, list2):
 
 
 
-def cartesianProductSum(list1, list2):
+def cartesian_product_sum(list1, list2):
     """This routine returns a list of sums of each element of
     list1 with each element of list2. Also works with lists.
     """
@@ -826,7 +825,7 @@ def cartesianProductSum(list1, list2):
 
 
 
-def reverseDictionary(the_dict):
+def reverse_dictionary(the_dict):
     result = {}
     for key, value in the_dict.iteritems():
         if value in result:
@@ -837,46 +836,48 @@ def reverseDictionary(the_dict):
 
 
 
-def generatePositiveIntegerTuplesBelow(n, length, least = 0):
+def generate_positive_integer_tuples_below(n, length, least = 0):
     assert length >= 0
     if length == 0:
         yield []
     else:
         for i in range(least, n):
-            for base in generatePositiveIntegerTuplesBelow(n, length-1, least):
+            for base in generate_positive_integer_tuples_below(n, length-1, least):
                 yield [i] + base
 
-def generateAllPositiveIntegerTuples(length, least = 0):
+def generate_all_positive_integer_tuples(length, least = 0):
     assert length >= 0
     current_max = least
     while True:
         for max_pos in range(length):
-            for prebase in generatePositiveIntegerTuplesBelow(current_max, max_pos, least):
-                for postbase in generatePositiveIntegerTuplesBelow(current_max+1, length-max_pos-1, least):
+            for prebase in generate_positive_integer_tuples_below(current_max, max_pos, least):
+                for postbase in generate_positive_integer_tuples_below(current_max+1, length-max_pos-1, least):
                     yield prebase + [current_max] + postbase
         current_max += 1
 
-def _posAndNegAdaptor(tuple_iter):
+def _pos_and_neg_adaptor(tuple_iter):
     for tup in tuple_iter:
         nonzero_indices = [i for i in range(len(tup)) if tup[i] != 0]
-        for do_neg_tup in generatePositiveIntegerTuplesBelow(2, len(nonzero_indices)):
+        for do_neg_tup in generate_positive_integer_tuples_below(2, len(nonzero_indices)):
             this_result = list(tup)
             for index, do_neg in enumerate(do_neg_tup):
                 if do_neg:
                     this_result[nonzero_indices[index]] *= -1
             yield tuple(this_result)
 
-def generateAllIntegerTuplesBelow(n, length, least_abs = 0):
-    return _posAndNegAdaptor(generatePositiveIntegerTuplesBelow(n, length, least_abs))
+def generate_all_integer_tuples_below(n, length, least_abs = 0):
+    return _pos_and_neg_adaptor(generate_positive_integer_tuples_below(
+        n, length, least_abs))
 
-def generateAllIntegerTuples(length, least_abs = 0):
-    return _posAndNegAdaptor(generateAllPositiveIntegerTuples(length, least_abs))
+def generate_all_integer_tuples(length, least_abs = 0):
+    return _pos_and_neg_adaptor(generate_all_positive_integer_tuples(
+        length, least_abs))
             
 
 
 
 # Obscure stuff --------------------------------------------------------------
-def writeMatrixAsCSV(filename, matrix):
+def write_matrix_as_csv(filename, matrix):
     mat_file = file(filename, "w")
     h,w = matrix.shape
     for row in range(0, h):
@@ -887,9 +888,9 @@ def writeMatrixAsCSV(filename, matrix):
 
 
 
-def enumerateBasicDirections(dimensions):
+def enumerate_basic_directions(dimensions):
     coordinate_list = [[0], [1], [-1]]
-    return reduce(cartesianProductSum, [coordinate_list] * dimensions)[1:]
+    return reduce(cartesian_product_sum, [coordinate_list] * dimensions)[1:]
 
 
 

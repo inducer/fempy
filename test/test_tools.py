@@ -1,4 +1,4 @@
-import pylinear.matrices as num
+import pylinear.array as num
 import fempy.eoc as eoc
 import fempy.expression as expression
 import fempy.stopwatch as stopwatch
@@ -40,7 +40,7 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
     if iteration_limit is not None and iteration_count >= iteration_limit:
       return mesh, solution
 
-    job = stopwatch.tJob("refining...")
+    job = stopwatch.Job("refining...")
     mesh_change = mesh.getRefinement(element_needs_refining)
 
     if mesh_change is None:
@@ -50,7 +50,7 @@ def solveAdaptively(mesh, solve, iteration_limit = None):
     mesh = mesh_change.meshAfter()
     job.done()
 
-    #job = stopwatch.tJob("adapting...")
+    #job = stopwatch.Job("adapting...")
     #solution = mesh_change.changeSolution(solution)
     #job.done()
 
@@ -77,10 +77,10 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   # build geometry ------------------------------------------------------------
 
-  energy_eoc_rec = eoc.tEOCRecorder()
-  l2_eoc_rec = eoc.tEOCRecorder()
+  energy_eoc_rec = eoc.EOCRecorder()
+  l2_eoc_rec = eoc.EOCRecorder()
 
-  it_number = tools.tReference(0)
+  it_number = tools.Reference(0)
 
   def solve(new_mesh, start_solution_vector = None):
     if start_solution_vector is None:
@@ -90,7 +90,7 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
     solution_vector = solver.solvePoisson(new_mesh, rhs_c, constraints,
                                           start_solution_vector)
 
-    job = stopwatch.tJob("error")
+    job = stopwatch.Job("error")
     energy_estimator = element_norm.makeEnergyErrorNormSquared(grad_sol_c, solution_vector)
     l2_estimator = element_norm.makeL2ErrorNormSquared(sol_c, solution_vector)
 
@@ -110,10 +110,10 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
       else:
         return 0
 
-    energy_eoc_rec.addDataPoint(len(new_mesh.elements())**0.5,
-                         tools.sumOver(energy_estimator, new_mesh.elements())**0.5)
-    l2_eoc_rec.addDataPoint(len(new_mesh.elements())**0.5,
-                         tools.sumOver(l2_estimator, new_mesh.elements())**0.5)
+    energy_eoc_rec.add_data_point(len(new_mesh.elements())**0.5,
+                                  tools.sum_over(energy_estimator, new_mesh.elements())**0.5)
+    l2_eoc_rec.add_data_point(len(new_mesh.elements())**0.5,
+                              tools.sum_over(l2_estimator, new_mesh.elements())**0.5)
     job.done()
 
     it_number.set(it_number.get() + 1)
@@ -123,25 +123,25 @@ def adaptiveDemo(expr, mesh, max_iterations = 10):
 
   print "-------------------------------------------------------"
 
-  print "Energy norm EOC overall:", energy_eoc_rec.estimateOrderOfConvergence()[0,1]
+  print "Energy norm EOC overall:", energy_eoc_rec.estimate_order_of_convergence()[0,1]
   print "Energy norm EOC Gliding means:"
-  gliding_means = energy_eoc_rec.estimateOrderOfConvergence(3)
+  gliding_means = energy_eoc_rec.estimate_order_of_convergence(3)
   gliding_means_iterations,dummy = gliding_means.shape
   for i in range(gliding_means_iterations):
     print "Iteration %d: %f" % (i, gliding_means[i,1])
   print "-------------------------------------------------------"
 
-  energy_eoc_rec.writeGnuplotFile(",,convergence_energy.data")
+  energy_eoc_rec.write_gnuplot_file(",,convergence_energy.data")
 
-  print "L^2 EOC overall:", l2_eoc_rec.estimateOrderOfConvergence()[0,1]
+  print "L^2 EOC overall:", l2_eoc_rec.estimate_order_of_convergence()[0,1]
   print "L^2 EOC Gliding means:"
-  gliding_means = l2_eoc_rec.estimateOrderOfConvergence(3)
+  gliding_means = l2_eoc_rec.estimate_order_of_convergence(3)
   gliding_means_iterations,dummy = gliding_means.shape
   for i in range(gliding_means_iterations):
     print "Iteration %d: %f" % (i, gliding_means[i,1])
   print "-------------------------------------------------------"
 
-  l2_eoc_rec.writeGnuplotFile(",,convergence_l2.data")
+  l2_eoc_rec.write_gnuplot_file(",,convergence_l2.data")
 
   visualize(mesh_function)
 

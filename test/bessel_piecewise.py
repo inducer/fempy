@@ -1,6 +1,6 @@
 import sys, math
-import pylinear.matrices as num
-import pylinear.matrix_tools as mtools
+import pylinear.array as num
+import pylinear.operation as op
 import fempy.mesh
 import fempy.geometry as geometry
 import fempy.solver as solver
@@ -19,7 +19,7 @@ alpha_1 = 40; alpha_2 = 1
 origin = num.zeros((2,), num.Float)
 
 def alpha(r):
-    if mtools.norm2(r) < 0.5:
+    if op.norm_2(r) < 0.5:
         return alpha_1
     else:
         return alpha_2
@@ -56,10 +56,10 @@ def R_2diff(lambd, n, c21, c22, r):
 
 do_visualization = raw_input("visualize? [n]") == "y"
 
-eigenvalue_eoc = eoc.tEOCRecorder()
-eigenfunc_eoc = eoc.tEOCRecorder()
+eigenvalue_eoc = eoc.EOCRecorder()
+eigenfunc_eoc = eoc.EOCRecorder()
 max_tri_area = 8e-2
-for step in range(10):
+for step in range(4):
     max_tri_area *= 0.8
 
     mesh = fempy.mesh.tTwoDimensionalMesh(
@@ -97,10 +97,10 @@ for step in range(10):
         lambda_0 /= 100
         evalue_error += abs(lambda_0-fempy_evalue)**2
         print "found", mu_0, nu_0, lambda_0, fempy_evalue
-        print "f residual:", mtools.norm2(num.array(findMyZero([mu_0, nu_0, lambda_0*100])))
+        print "f residual:", op.norm_2(num.array(findMyZero([mu_0, nu_0, lambda_0*100])))
 
         def Rvector(r_vec):
-            return R(lambda_0, n, c11_0, c21_0, c22_0, mtools.norm2(r_vec))
+            return R(lambda_0, n, c11_0, c21_0, c22_0, op.norm_2(r_vec))
  
         if do_visualization:
             tools.write1DGnuplotGraph(
@@ -116,29 +116,29 @@ for step in range(10):
         fempy_emode *=  Rvector(origin) / fempy_emode(origin)
 
         my_estimator = element_norm.makeL2ErrorNormSquared(Rvector, fempy_emode)
-        total_error = tools.sumOver(my_estimator, mesh.elements())
+        total_error = tools.sum_over(my_estimator, mesh.elements())
 
-        eigenfunc_eoc.addDataPoint(math.sqrt(len(mesh.elements())),
-                                    math.sqrt(abs(total_error)))
+        eigenfunc_eoc.add_data_point(math.sqrt(len(mesh.elements())),
+                                     math.sqrt(abs(total_error)))
 
-    eigenvalue_eoc.addDataPoint(math.sqrt(len(mesh.elements())),
-                                math.sqrt(evalue_error))
+    eigenvalue_eoc.add_data_point(math.sqrt(len(mesh.elements())),
+                                  math.sqrt(evalue_error))
 
 print "-------------------------------------------------------"
-print "Eigenvalue EOC overall:", eigenvalue_eoc.estimateOrderOfConvergence()[0,1]
+print "Eigenvalue EOC overall:", eigenvalue_eoc.estimate_order_of_convergence()[0,1]
 print "EOC Gliding means:"
-gliding_means = eigenvalue_eoc.estimateOrderOfConvergence(3)
+gliding_means = eigenvalue_eoc.estimate_order_of_convergence(3)
 gliding_means_iterations,dummy = gliding_means.shape
 for i in range(gliding_means_iterations):
     print "Iteration %d: %f" % (i, gliding_means[i,1])
 print "-------------------------------------------------------"
-eigenvalue_eoc.writeGnuplotFile(",,eigenvalue_conv.data")
+eigenvalue_eoc.write_gnuplot_file(",,eigenvalue_conv.data")
 print "-------------------------------------------------------"
-print "Eigenfunction EOC overall:", eigenfunc_eoc.estimateOrderOfConvergence()[0,1]
+print "Eigenfunction EOC overall:", eigenfunc_eoc.estimate_order_of_convergence()[0,1]
 print "EOC Gliding means:"
-gliding_means = eigenfunc_eoc.estimateOrderOfConvergence(3)
+gliding_means = eigenfunc_eoc.estimate_order_of_convergence(3)
 gliding_means_iterations,dummy = gliding_means.shape
 for i in range(gliding_means_iterations):
     print "Iteration %d: %f" % (i, gliding_means[i,1])
 print "-------------------------------------------------------"
-eigenfunc_eoc.writeGnuplotFile(",,eigenfunc_conv.data")
+eigenfunc_eoc.write_gnuplot_file(",,eigenfunc_conv.data")
