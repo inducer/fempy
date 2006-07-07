@@ -1,6 +1,6 @@
 import math
 import mesh
-import expression_operators as eo
+import pymbolic
 
 
 
@@ -18,7 +18,8 @@ def get_parallelogram(grid_vectors):
 
 def get_circle(radius, use_exact=True):
     sqrt2_inv = math.sqrt(2)/2 * radius
-    r_squared = radius * radius
+    r_squared = pymbolic.const(radius * radius)
+    v_t = pymbolic.var("t")
 
     return [
         # going counterclockwise.
@@ -28,29 +29,29 @@ def get_circle(radius, use_exact=True):
         #  B 
 
         # right
-        mesh.tShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
-                         (eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5),
-                         use_exact_elements = use_exact),
+        mesh.ShapeGuide(0, [-sqrt2_inv, sqrt2_inv],
+                        (r_squared - v_t**2)**0.5,
+                        use_exact_elements = use_exact),
     
         # top
-        mesh.tShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
-                         (eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5),
-                         use_exact_elements = use_exact),
+        mesh.ShapeGuide(1, [sqrt2_inv, -sqrt2_inv],
+                        (r_squared - v_t**2)**0.5,
+                        use_exact_elements = use_exact),
 
         # left
-        mesh.tShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
-                         (eo.NEG,(eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5)),
-                         use_exact_elements = use_exact),
+        mesh.ShapeGuide(0, [sqrt2_inv, -sqrt2_inv],
+                        -(r_squared - v_t**2)**0.5,
+                        use_exact_elements = use_exact),
         
         # bottom
-        mesh.tShapeGuide(1, [-sqrt2_inv,sqrt2_inv],
-                         (eo.NEG,(eo.POWER,(eo.MINUS,r_squared,(eo.POWER,(eo.VARIABLE,"t"),2)),0.5)),
-                         use_exact_elements = use_exact),
+        mesh.ShapeGuide(1, [-sqrt2_inv,sqrt2_inv],
+                        -(r_squared - v_t**2)**0.5,
+                        use_exact_elements = use_exact),
         ]
 
 
 
 
 def get_annulus_geometry(outer_radius, inner_radius, use_exact=True):
-    return [mesh.tShapeSection(getCircle(outer_radius, use_exact), "dirichlet"),
-            mesh.tShapeSection(getCircle(inner_radius, use_exact), "dirichlet")]
+    return [mesh.ShapeSection(get_circle(outer_radius, use_exact), "dirichlet"),
+            mesh.ShapeSection(get_circle(inner_radius, use_exact), "dirichlet")]

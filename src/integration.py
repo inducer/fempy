@@ -1,7 +1,7 @@
 import pylinear.array as num
 import pylinear.operation as op
 import math
-import tools
+import pytools
 
 # Weights from H.R. Schwarz, "Methode der finiten Elemente", Teubner 1980,
 # p. 121f.
@@ -108,7 +108,7 @@ def integrate_on_unit_interval_4(f):
 def integrate_along_line(point1, point2, f):
     direction = point2 - point1
     return op.norm_2(direction)\
-           * integrateOnUnitInterval4(lambda x: f(point1 + x * direction))
+           * integrate_on_unit_interval_4(lambda x: f(point1 + x * direction))
 
 
 
@@ -128,4 +128,4 @@ def integrate_on_two_dimensional_grid(grid, f):
         result += .5 * (f((0,j))+f((dim1,j)))
 
     gv = grid.grid_vectors()
-    return result * tools.get_parallelogram_volume(gv)
+    return result * pytools.get_parallelogram_volume(gv)

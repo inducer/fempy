@@ -1,7 +1,6 @@
 import pylinear.array as num
-import pylinear.linear_algebra as la
-import expression_operators as eo
-import expression
+import pylinear.operation as op
+import pymbolic
 
 
 
@@ -20,18 +19,14 @@ def generate_combinations(elements, count):
 
 
 # constraints -----------------------------------------------------------------
-def hasValueAt(value, point):
-    def get_linear_system_parts(expressions):
+def has_value_at(value, point):
+    def get_linear_system_parts(expressions, variable):
         n = len(expressions)
         row = num.zeros((n,), num.Float)
         
-        var_assignments = {}
-        for i in range(0, len(point)):
-            var_assignments[ "%d" % i ] = point[ i ]
-
         for i in range(0, n):
-            row[i] = expression.evaluate(expressions[i], var_assignments)
-        return row,value
+            row[i] = pymbolic.evaluate(expressions[i], {variable.name: point})
+        return row, value
     return get_linear_system_parts
 
 def zero_at(*point):
@@ -44,12 +39,15 @@ def one_at(*point):
 
 
 # form function creator -------------------------------------------------------
-def make_form_function_expression(order, dimensions, constraints, extra_expressions=[]):
-    variables = [ (eo.VARIABLE,"%d" % dim) for dim in range(0, dimensions) ]
-    expressions = [ 1 ] + [ 
-        expression.multiplyUp(combination)
-        for current_ord in range(1, order + 1)
-        for combination in generateCombinations(variables, current_ord) ] \
+def make_form_function_expression(order, dimensions, constraints, extra_expressions=[],
+                                  variable=pymbolic.var("x")):
+    variables = [pymbolic.subscript(variable, pymbolic.const(i))
+                 for i in range(dimensions)]
+                                    
+    expressions = [ 
+        pymbolic.product(*combination)
+        for current_ord in range(0, order + 1)
+        for combination in generate_combinations(variables, current_ord) ] \
         + extra_expressions
 
     n = len(expressions)
@@ -60,22 +58,23 @@ def make_form_function_expression(order, dimensions, constraints, extra_expressi
     matrix = num.zeros((n,n), num.Float)
     rhs = num.zeros((n,), num.Float)
     for row in range(0, n):
-        lh_row, rh_scalar = constraints[row](expressions)
+        lh_row, rh_scalar = constraints[row](expressions, variable)
         matrix[row] = lh_row
         rhs[row] = rh_scalar
 
-    coefficients = la.solve_linear_equations(matrix, rhs)
-    return expression.simplify(expression.linearCombination(coefficients, expressions))
+    coefficients = matrix <<num.solve>> rhs
+    return pymbolic.simplify(pymbolic.linear_combination(coefficients, expressions))
 
 
 
 
-def makeFormFunctions(order, points, extra_expressions=[]):
+def make_form_functions(order, points, extra_expressions=[], 
+                        variable=pymbolic.var("x")):
     all_constraints = []
     for i in range(len(points)):
-        all_constraints.append([zeroAt(*point) for point in points])
-        all_constraints[i][i] = oneAt(*points[i])
-    return [makeFormFunctionExpression(
+        all_constraints.append([zero_at(*point) for point in points])
+        all_constraints[i][i] = one_at(*points[i])
+    return [make_form_function_expression(
         order, len(points[0]), constraint, 
-        extra_expressions) for constraint in all_constraints]
+        extra_expressions, variable) for constraint in all_constraints]
 

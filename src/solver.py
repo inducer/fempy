@@ -3,7 +3,7 @@ import math
 import pylinear.array as num
 import pylinear.operation as op
 
-import stopwatch
+import pytools.stopwatch as stopwatch
 import element
 import mesh_function
 
@@ -92,7 +92,7 @@ def build_mass_matrix(mesh, number_assignment, weight_function, typecode=num.Flo
 
 
 
-def solvePoisson(mesh, f, node_constraints, start_vector = None):
+def solve_poisson(mesh, f, node_constraints, start_vector = None):
     """Solve the Poisson equation
 
     laplace u = f
@@ -215,10 +215,10 @@ class LaplacianEigenproblemSolver:
         if given_number_assignment is None:
             # construct new node number assignment
             number_assignment = self.NumberAssignment = \
-                                element.assignNodeNumbers(unconstrained_nodes)
+                                element.assign_node_numbers(unconstrained_nodes)
             complete_number_assignment = self.CompleteNumberAssignment = \
-                                         element.assignNodeNumbers(constrained_nodes, 
-                                                                   number_assignment)
+                                         element.assign_node_numbers(constrained_nodes, 
+                                                                     number_assignment)
         else:
             # make sure that the given node number assignment conforms to our convention
             assert max(given_number_assignment.values()) == len(mesh.dof_manager()) - 1
@@ -326,12 +326,12 @@ class LaplacianEigenproblemSolver:
                 tolerance=tolerance)
             job.done()
   
-        result = [(eigenvalue, mesh_function.tMeshFunction(
+        result = [(eigenvalue, mesh_function.MeshFunction(
             self.Mesh,
             self.CompleteNumberAssignment,
-            mesh_function.makeCompleteVector(self.CompleteNumberAssignment,
-                                             num.conjugate(eigenvector),
-                                             self.Constraints)))
+            mesh_function.make_complete_vector(self.CompleteNumberAssignment,
+                                               num.conjugate(eigenvector),
+                                               self.Constraints)))
                 for eigenvalue, eigenvector in eigen_result]
 
         # perform some invariant checking

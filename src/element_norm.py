@@ -1,43 +1,43 @@
 import pylinear.array as num
 import pylinear.operation as op
 
-import tools
+import pytools
 
 
 
 
-def makeL2ErrorNormSquared(analytic_solution, mesh_func):
-  def result_func(el):
-    def errorFunctionL2(point, solution_func_value):
-      return abs(analytic_solution(el.transformToReal(point)) - solution_func_value) ** 2
+def make_l2_error_norm_squared(analytic_solution, mesh_func):
+    def result_func(el):
+        def error_function_l2(point, solution_func_value):
+            return abs(analytic_solution(el.transform_to_real(point)) - solution_func_value) ** 2
 
-    node_values = num.array([mesh_func[node] for node in el.nodes()])
-    return el.getVolumeIntegralOver(errorFunctionL2, node_values)
-  return tools.FunctionValueCache(result_func)
+        node_values = num.array([mesh_func[node] for node in el.nodes()])
+        return el.get_volume_integral_over(error_function_l2, node_values)
+    return pytools.FunctionValueCache(result_func)
 
-def makeH1ErrorNormSquared(analytic_solution, grad_analytic_solution, mesh_func):
-  def result_func(el):
-    def errorFunctionH1(point, solution_func_value):
-      real_point = element.transformToReal(point)
-      grad = mesh_func.getRealGradientOnElement(el, point)
+def make_h1_error_norm_squared(analytic_solution, grad_analytic_solution, mesh_func):
+    def result_func(el):
+        def error_function_h1(point, solution_func_value):
+            real_point = element.transform_to_real(point)
+            grad = mesh_func.get_real_gradient_on_element(el, point)
 
-      return (abs(analytic_solution(real_point) - solution_func_value) ** 2 \
-        + op.norm_2_squared(grad - grad_analytic_solution(real_point)))
+            return (abs(analytic_solution(real_point) - solution_func_value) ** 2 \
+                    + op.norm_2_squared(grad - grad_analytic_solution(real_point)))
 
-    node_values = num.array([mesh_func[node] for node in el.nodes()])
-    return el.getVolumeIntegralOver(errorFunctionH1, node_values)
+        node_values = num.array([mesh_func[node] for node in el.nodes()])
+        return el.get_volume_integral_over(error_function_h1, node_values)
 
-  return tools.FunctionValueCache(result_func)
+    return pytools.FunctionValueCache(result_func)
 
-def makeEnergyErrorNormSquared(grad_analytic_solution, mesh_func):
-  def result_func(el):
-    def errorFunctionH1(point, solution_func_value):
-      real_point = el.transformToReal(point)
-      grad = mesh_func.getRealGradientOnElement(el, point)
+def make_energy_error_norm_squared(grad_analytic_solution, mesh_func):
+    def result_func(el):
+        def error_function_h1(point, solution_func_value):
+            real_point = el.transform_to_real(point)
+            grad = mesh_func.get_real_gradient_on_element(el, point)
 
-      return op.norm_2_squared(grad - grad_analytic_solution(real_point))
+            return op.norm_2_squared(grad - grad_analytic_solution(real_point))
 
-    node_values = num.array([mesh_func[node] for node in el.nodes()])
-    return el.getVolumeIntegralOver(errorFunctionH1, node_values)
+        node_values = num.array([mesh_func[node] for node in el.nodes()])
+        return el.get_volume_integral_over(error_function_h1, node_values)
 
-  return tools.FunctionValueCache(result_func)
+    return pytools.FunctionValueCache(result_func)

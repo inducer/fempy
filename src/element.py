@@ -5,7 +5,7 @@ import pylinear.linear_algebra as la
 import pylinear.operation as op
 
 import integration
-import expression
+import pymbolic
 import form_function
 
 class FiniteElementError(Exception):
@@ -87,9 +87,9 @@ class FiniteElement(object):
 
     def __init__(self, base_nodes, dof_manager, form_function_kit):
         self.FormFunctionKit = form_function_kit
-        self.FormFunctions = form_function_kit.formFunctions()
-        self.DifferentiatedFormFunctions = form_function_kit.differentiatedFormFunctions()
-        self.Nodes = form_function_kit.getNodes(base_nodes, dof_manager, self)
+        self.FormFunctions = form_function_kit.form_functions()
+        self.DifferentiatedFormFunctions = form_function_kit.differentiated_form_functions()
+        self.Nodes = form_function_kit.get_nodes(base_nodes, dof_manager, self)
     
     def nodes(self):
         return self.Nodes
@@ -227,14 +227,17 @@ class FormFunctionKit:
         self._ExtraPoints = extra_points
         self._VisualizationSegments = vis_segments
     
-        self._FormFunctionExpressions = form_function.makeFormFunctions(order,
-                                                                    all_points)
+        v_x = pymbolic.var("x")
+        self._FormFunctionExpressions = form_function.make_form_functions(
+            order, all_points, variable=v_x)
 
-        self._FormFunctions = [ expression.compileScalarField(expr, dimension) 
-                                for expr in self._FormFunctionExpressions]
+        self._FormFunctions = [pymbolic.compile(expr, variables=[v_x]) 
+                               for expr in self._FormFunctionExpressions]
+        ffe0 = self._FormFunctionExpressions[0]
         self._DifferentiatedFormFunctions =  [ [ 
-            expression.compileScalarField(expression.simplify(
-            expression.differentiate(expr, "%i" % dim)), dimension)
+            pymbolic.compile(pymbolic.simplify(
+            pymbolic.differentiate(expr, pymbolic.subscript(v_x, dim))),
+                             variables=[v_x])
             for dim in range(dimension) ] for expr in self._FormFunctionExpressions]
         
     def form_functions(self):
@@ -247,7 +250,7 @@ class FormFunctionKit:
         na = base_node_list[inbetween_point.NodeAIndex]
         nb = base_node_list[inbetween_point.NodeBIndex]
         try:
-            return dof_manager.getNodeByTag(inbetween_point.completeTag(nb.Tag, na.Tag))
+            return dof_manager.get_node_by_tag(inbetween_point.complete_tag(nb.Tag, na.Tag))
         except RuntimeError:
             pa = self._Points[inbetween_point.NodeAIndex]
             pb = self._Points[inbetween_point.NodeBIndex]
@@ -261,11 +264,11 @@ class FormFunctionKit:
 
             if na.ShapeSection is not None and \
                na.ShapeSection is nb.ShapeSection and \
-               na.ShapeSection.containsPoint(coordinates):
+               na.ShapeSection.contains_point(coordinates):
                 shape_section = na.ShapeSection
                 tracking_id = shape_section.TrackingId
 
-            return dof_manager.registerNode(inbetween_point.completeTag(na.Tag, nb.Tag),
+            return dof_manager.register_node(inbetween_point.complete_tag(na.Tag, nb.Tag),
                                             coordinates,
                                             tracking_id,
                                             shape_section
@@ -410,10 +413,10 @@ class TwoDimensionalTriangularFiniteElement(FiniteElement):
     
     # Tools ---------------------------------------------------------------------
     def transform_to_real(self, point):
-        return num.matrixmultiply(self.TransformMatrix, point) + self.Origin
+        return self.TransformMatrix*point + self.Origin
 
     def transform_to_unit(self, point):
-        return num.matrixmultiply(self.TransformMatrixInverse, point - self.Origin)
+        return self.TransformMatrixInverse*(point - self.Origin)
 
     def get_transform_jacobian(self, point):
         return self.TransformMatrix
@@ -471,7 +474,7 @@ class TwoDimensionalTriangularFiniteElement(FiniteElement):
 
     def get_volume_integrals_over_form_functions(self, f):
         jacobian_det = self.Area * 2
-        def f(point):
+        def g(point):
             return f(self.transform_to_real(point)) * fr(point) * fc(point)
 
         ff_count = len(self.FormFunctions)
@@ -482,7 +485,7 @@ class TwoDimensionalTriangularFiniteElement(FiniteElement):
                 fc = self.FormFunctions[column]
 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrate_on_unit_triangle(f)
+                                               integration.integrate_on_unit_triangle(g)
 
         return jacobian_det * influence_matrix
 
@@ -523,7 +526,7 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
                  distort_function, distort_jacobian, inverse_distort_function):
         self.transform_to_real = distort_function
         self.transform_to_unit = inverse_distort_function
-        self.getTransformJacobian = distort_jacobian
+        self.get_transform_jacobian = distort_jacobian
         FiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
 
         # verify validity
@@ -566,7 +569,7 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
     # Integral contributions ----------------------------------------------------
     def get_volume_integrals_over_differentiated_form_functions(self, which_derivative = [0,1], factor = 1.):
         def f_all(point):
-            g = self.getTransformJacobian(point)
+            g = self.get_transform_jacobian(point)
             
             # determinant count:
             # +1 for the substitution integral
@@ -601,8 +604,8 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
         return factor * influence_matrix
 
     def get_volume_integrals_over_form_functions(self, f):
-        def f(point):
-            g = self.getTransformJacobian(point)
+        def fii(point):
+            g = self.get_transform_jacobian(point)
             return f(self.transform_to_real(point)) * math.fabs(la.determinant(g)) * \
                    fr(point) * fc(point)
 
@@ -614,7 +617,7 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
                 fc = self.FormFunctions[column]
 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrate_on_unit_triangle(f)
+                                               integration.integrate_on_unit_triangle(fii)
 
         return influence_matrix
     
@@ -622,13 +625,13 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
         n = len(self.FormFunctions)
         influences = num.zeros((n,), typecode)
         
-        def f(point):
-            g = self.getTransformJacobian(point)
+        def fii(point):
+            g = self.get_transform_jacobian(point)
             return math.fabs(la.determinant(g)) * \
                    f(self.transform_to_real(point), ff(point))
         for i in range(n):
             ff = self.FormFunctions[i]
-            influences[i] = integration.integrate_on_unit_triangle(f)
+            influences[i] = integration.integrate_on_unit_triangle(fii)
 
         return influences
 
@@ -636,7 +639,7 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
         zipped = zip(coefficients, self.FormFunctions)
         def g(point):
             ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
-            return math.fabs(la.determinant(self.getTransformJacobian(point))) * \
+            return math.fabs(la.determinant(self.get_transform_jacobian(point))) * \
                    f(point , ff_comb)
 
         return integration.integrate_on_unit_triangle(g)
@@ -648,27 +651,68 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
 
 
 
+# Factories ------------------------------------------------------------
+class ElementFactory:
+    def __call__(self, nodes, dof_manager):
+        return self.make(nodes, dof_manager)
+
+    def make(self, nodes, dof_manager):
+        raise NotImplementedError
+
+class ElementFactory1D(ElementFactory):
+    def __init__(self, order):
+        # FIXME: Actually heed order
+        pass
+
+    def make(self, nodes, dof_manager):
+        return OneDimensionalFiniteElement(
+            nodes, dof_manager, 
+            LinearFormFunctionKit1D)
+
+class ElementFactory2DTriangle(ElementFactory):
+    def __init__(self, order):
+        if order == 1:
+            self.FFKit = LinearFormFunctionKit2DTriangle
+        elif order == 2:
+            self.FFKit = QuadraticFormFunctionKit2DTriangle
+        else:
+            raise ValueError, "Invalid polynomial order"
+
+    def make(self, nodes, dof_manager):
+        return TwoDimensionalTriangularFiniteElement(
+            nodes, dof_manager, self.FFKit)
+
+    def make_distorted(self, nodes, dof_manager,
+                       transform, tf_jacobian,
+                       tf_inverse):
+        return DistortedTwoDimensionalTriangularFiniteElement(
+            nodes, dof_manager, self.FFKit,
+            transform, tf_jacobian, tf_inverse)
+
+
+
+
 # Tools ----------------------------------------------------------------
 def _visualize_triangle(vis_data, element, solution_mesh_func, 
                        segments = 8):
-    form_function_kit = element.formFunctionKit()
-    form_funcs = form_function_kit.formFunctions()
+    form_function_kit = element.form_function_kit()
+    form_funcs = form_function_kit.form_functions()
     element_nodes = element.nodes()
     h = 1./segments
 
     # first column
     line_of_node_numbers = []
 
-    nuass = solution_mesh_func.numberAssignment()
+    nuass = solution_mesh_func.number_assignment()
 
     line_of_node_numbers.append(nuass[element_nodes[0]])
     for y_n in range(1, segments):
         pt = num.array([0,y_n*h])
       
         line_of_node_numbers.append(
-            vis_data.registerLocalNode(
+            vis_data.register_local_node(
             element.transform_to_real(pt), 
-            solution_mesh_func.getValueOnElement(element, pt)))
+            solution_mesh_func.get_value_on_element(element, pt)))
 
     line_of_node_numbers.append(nuass[element_nodes[2]])
     node_numbers_laid_out = [line_of_node_numbers]
@@ -681,9 +725,9 @@ def _visualize_triangle(vis_data, element, solution_mesh_func,
             pt = num.array([x,y_n*h])
 
             line_of_node_numbers.append(
-                vis_data.registerLocalNode(
+                vis_data.register_local_node(
                 element.transform_to_real(pt), 
-                solution_mesh_func.getValueOnElement(element, pt)))
+                solution_mesh_func.get_value_on_element(element, pt)))
 
         node_numbers_laid_out.append(line_of_node_numbers)
 
@@ -693,12 +737,12 @@ def _visualize_triangle(vis_data, element, solution_mesh_func,
     triangles = []
     for x_n in range(segments):
         for y_n in range(segments-x_n):
-            vis_data.addTriangle(
+            vis_data.add_triangle(
                 node_numbers_laid_out[x_n][y_n],
                 node_numbers_laid_out[x_n+1][y_n],
                 node_numbers_laid_out[x_n][y_n+1])
             if y_n != segments-x_n-1:
-                vis_data.addTriangle(
+                vis_data.add_triangle(
                     node_numbers_laid_out[x_n+1][y_n+1],
                     node_numbers_laid_out[x_n][y_n+1],
                     node_numbers_laid_out[x_n+1][y_n])
@@ -712,4 +756,4 @@ def _visualize_triangle(vis_data, element, solution_mesh_func,
     for y_n in range(segments)[-1::-1]:
         my_poly.append(node_numbers_laid_out[0][y_n])
 
-    vis_data.addExtraPolygon(my_poly)
+    vis_data.add_extra_polygon(my_poly)

@@ -4,7 +4,7 @@ import fempy.geometry as geometry
 import fempy.solver as solver
 import fempy.visualization as visualization
 
-def needsRefinement(vert_origin, vert_destination, vert_apex, area):
+def needs_refinement(vert_origin, vert_destination, vert_apex, area):
     return area >= 3e-2
 
 alpha_1 = 1; alpha_2 = 40
@@ -15,14 +15,14 @@ def alpha(x):
     else:
         return alpha_2
 
-mesh = fempy.mesh.tTwoDimensionalMesh(
-    [fempy.mesh.tShapeSection(fempy.geometry.getCircle(1), "dirichlet"),
-     fempy.mesh.tShapeSection(fempy.geometry.getCircle(0.5), "unconstrained")], 
-    refinement_func = needsRefinement)
-constraints = solver.getDirichletConstraints(mesh, u_d = lambda x: 0)
-eigensolver = solver.tLaplacianEigenproblemSolver(
+mesh = fempy.mesh.TwoDimensionalMesh(
+    [fempy.mesh.ShapeSection(fempy.geometry.get_circle(1), "dirichlet"),
+     fempy.mesh.ShapeSection(fempy.geometry.get_circle(0.5), "unconstrained")], 
+    refinement_func = needs_refinement)
+constraints = solver.get_dirichlet_constraints(mesh, u_d = lambda x: 0)
+eigensolver = solver.LaplacianEigenproblemSolver(
   mesh, constrained_nodes = constraints, g = alpha)
-eigensolver.setupConstraints(constraints)
+eigensolver.setup_constraints(constraints)
 solutions = eigensolver.solve(0, tolerance = 1e-10, number_of_eigenvalues = 20)
 
 for evalue, emode in solutions:

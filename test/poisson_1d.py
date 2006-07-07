@@ -5,8 +5,6 @@ import pylinear.array as num
 import fempy
 import fempy.mesh
 import fempy.geometry
-import fempy.expression as expression
-import fempy.expression_operators as eo
 import fempy.visualization
 import fempy.solver
 
@@ -24,7 +22,7 @@ def u_d(x):
   else:
     return 0
 
-mesh = fempy.mesh.tOneDimensionalMesh(-1, 1, 200, "dirichlet", "dirichlet")
-constraints = fempy.solver.getDirichletConstraints(mesh, u_d)
-solution = fempy.solver.solvePoisson(mesh, f, constraints)
-fempy.visualization.visualize1DMeshFunction(solution, ",,1d_solution.data")
+mesh = fempy.mesh.OneDimensionalMesh(-1, 1, 200, "dirichlet", "dirichlet")
+constraints = fempy.solver.get_dirichlet_constraints(mesh, u_d)
+solution = fempy.solver.solve_poisson(mesh, f, constraints)
+fempy.visualization.visualize_1d_mesh_function(solution, ",,1d_solution.data")

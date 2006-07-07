@@ -7,12 +7,12 @@ import fempy.solver as solver
 import fempy.visualization as visualization
 import fempy.element_norm as element_norm
 import fempy.mesh_function as mesh_function
-import fempy.tools as tools
+import pytools
 import scipy.special as special
 import fempy.eoc as eoc
 import scipy.optimize
 
-def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
+def needs_refinement( vert_origin, vert_destination, vert_apex, area ):
     return area >= max_tri_area
 
 alpha_1 = 40; alpha_2 = 1
@@ -49,7 +49,7 @@ def R_2diff(lambd, n, c21, c22, r):
            * math.sqrt(lambd*alpha_2)
 
 # Are we using the right functions?
-#tools.write1DGnuplotGraphs(
+#pytools.write1DGnuplotGraphs(
     #lambda x: (special.yn(1, x), special.yvp(1, x)),
     #a = 0.5, b = 30)
 #sys.exit()
@@ -62,17 +62,17 @@ max_tri_area = 8e-2
 for step in range(4):
     max_tri_area *= 0.8
 
-    mesh = fempy.mesh.tTwoDimensionalMesh(
-        [fempy.mesh.tShapeSection(fempy.geometry.getCircle(1), "dirichlet"),
-         fempy.mesh.tShapeSection(fempy.geometry.getCircle(0.5), "unconstrained")], 
-        refinement_func = needsRefinement)
+    mesh = fempy.mesh.TwoDimensionalMesh(
+        [fempy.mesh.ShapeSection(fempy.geometry.get_circle(1), "dirichlet"),
+         fempy.mesh.ShapeSection(fempy.geometry.get_circle(0.5), "unconstrained")], 
+        refinement_func = needs_refinement)
     print "ITERATION %d: %d elements, %d nodes" % (step, len(mesh.elements()),
-                                                   len(mesh.dofManager()))
-    constraints = solver.getDirichletConstraints(mesh, u_d = lambda x: 0)
-    eigensolver = solver.tLaplacianEigenproblemSolver(
-      mesh, constrained_nodes = constraints, g = alpha)
-    eigensolver.setupConstraints(constraints)
-    solutions = eigensolver.solve(0, tolerance = 1e-10, number_of_eigenvalues = 20)
+                                                   len(mesh.dof_manager()))
+    constraints = solver.get_dirichlet_constraints(mesh, u_d=lambda x: 0)
+    eigensolver = solver.LaplacianEigenproblemSolver(
+      mesh, constrained_nodes = constraints, g=alpha)
+    eigensolver.setup_constraints(constraints)
+    solutions = eigensolver.solve(0, tolerance=1e-10, number_of_eigenvalues=20)
 
     evalue_error = 0
     for n, (fempy_evalue, fempy_emode) in enumerate(solutions[0:1]):
@@ -103,20 +103,20 @@ for step in range(4):
             return R(lambda_0, n, c11_0, c21_0, c22_0, op.norm_2(r_vec))
  
         if do_visualization:
-            tools.write_1d_gnuplot_graph(
+            pytools.write_1d_gnuplot_graph(
                 lambda r: R(lambda_0, n, c11_0, c21_0, c22_0, r), 
                 a = 0.01, b = 1)
             visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), fempy_emode.real)
             raw_input("[showing computed, enter]")
 
-            ana = mesh_function.discretizeFunction(mesh, Rvector)
+            ana = mesh_function.discretize_function(mesh, Rvector)
             visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), ana)
             raw_input("[showing analytic, enter]")
 
         fempy_emode *=  Rvector(origin) / fempy_emode(origin)
 
-        my_estimator = element_norm.makeL2ErrorNormSquared(Rvector, fempy_emode)
-        total_error = tools.sum_over(my_estimator, mesh.elements())
+        my_estimator = element_norm.make_l2_error_norm_squared(Rvector, fempy_emode)
+        total_error = pytools.sum_over(my_estimator, mesh.elements())
 
         eigenfunc_eoc.add_data_point(math.sqrt(len(mesh.elements())),
                                      math.sqrt(abs(total_error)))

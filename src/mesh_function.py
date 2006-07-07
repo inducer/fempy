@@ -35,7 +35,7 @@ class MeshFunction(object):
         self.Mesh = mesh
         self.NumberAssignment = number_assignment
         if vector is None:
-            self.Vector = num.zeros((len(mesh.dofManager()),), typecode)
+            self.Vector = num.zeros((len(mesh.dof_manager()),), typecode)
         else:
             self.Vector = vector
 
@@ -115,21 +115,21 @@ class MeshFunction(object):
         self.Vector /= divisor
         return self
 
-    def realPart(self):
+    def _real_part(self):
         return self.copy(vector=self.Vector.real)
 
-    def imaginaryPart(self):
+    def _imaginary_part(self):
         return self.copy(vector=self.Vector.imaginary)
 
-    real = property(realPart)
-    imaginary = property(imaginaryPart)
+    real = property(_real_part)
+    imaginary = property(_imaginary_part)
 
     # value getters --------------------------------------------------------------
     def __getitem__(self, node):
         return self.Vector[self.NumberAssignment[node]]
 
     def get_value_on_element(self, el, unit_point):
-        ffs = el.formFunctionKit().formFunctions()
+        ffs = el.form_function_kit().form_functions()
         nodes = el.nodes()
 
         value = ffs[0](unit_point) * self[nodes[0]]
@@ -139,7 +139,7 @@ class MeshFunction(object):
         return value
 
     def get_gradient_on_element(self, el, unit_point):
-        ffs = el.formFunctionKit().differentiatedFormFunctions()
+        ffs = el.form_function_kit().differentiated_form_functions()
         nodes = el.nodes()
 
         value =  num.array([self[nodes[0]] * deriv(unit_point) for deriv in ffs[0]])
@@ -151,16 +151,16 @@ class MeshFunction(object):
     def get_real_gradient_on_element(self, el, unit_point):
         return num.matrixmultiply(
             num.transpose(la.inverse(
-            el.getTransformJacobian(unit_point))),
-            self.getGradientOnElement(el, unit_point))
+            el.get_transform_jacobian(unit_point))),
+            self.get_gradient_on_element(el, unit_point))
 
     def __call__(self, point):
-        el = self.Mesh.findElement(point)
-        return self.getValueOnElement(el, el.transformToUnit(point))
+        el = self.Mesh.find_element(point)
+        return self.get_value_on_element(el, el.transform_to_unit(point))
 
     def get_gradient(self, point):
-        el = self.Mesh.findElement(point)
-        return self.getRealGradientOnElement(el, el.transformToUnit(point))
+        el = self.Mesh.find_element(point)
+        return self.get_real_gradient_on_element(el, el.transform_to_unit(point))
 
 
 
@@ -168,11 +168,11 @@ class MeshFunction(object):
 def discretize_function(mesh, f, typecode = num.Float, number_assignment = None):
     if number_assignment is None:
         number_assignment = {}
-        for i, node in enumerate(mesh.dofManager()):
+        for i, node in enumerate(mesh.dof_manager()):
             number_assignment[node] = i
 
-    vector = num.zeros((len(mesh.dofManager()),), typecode)
-    for node in mesh.dofManager():
+    vector = num.zeros((len(mesh.dof_manager()),), typecode)
+    for node in mesh.dof_manager():
         vector[number_assignment[node]] = f(node.Coordinates)
 
     return MeshFunction(mesh, number_assignment, vector)
@@ -189,7 +189,7 @@ def discretize_function_by_inner_product(mesh, f, mass_matrix, number_assignment
     # where \alpha and \beta are vectors.
 
     mass_matrix = num.asarray(mass_matrix, typecode)
-    beta = num.zeros((len(mesh.dofManager()),), typecode)
+    beta = num.zeros((len(mesh.dof_manager()),), typecode)
     for el in mesh.elements():
         vol_ints = el.getVolumeIntegralsOverFormFunction(lambda x, phi_x: f(x)*phi_x,
                                                          typecode)
@@ -222,8 +222,8 @@ class ScalarProductCalculator:
         v1 = mf1.vector()
         v2 = mf2.vector()
 
-        assert mf1.numberAssignment() is self.NumberAssignment
-        assert mf2.numberAssignment() is self.NumberAssignment
+        assert mf1.number_assignment() is self.NumberAssignment
+        assert mf2.number_assignment() is self.NumberAssignment
 
         tc = v1.typecode()
         try:
