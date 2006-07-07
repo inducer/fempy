@@ -103,7 +103,7 @@ for step in range(4):
             return R(lambda_0, n, c11_0, c21_0, c22_0, op.norm_2(r_vec))
  
         if do_visualization:
-            tools.write1DGnuplotGraph(
+            tools.write_1d_gnuplot_graph(
                 lambda r: R(lambda_0, n, c11_0, c21_0, c22_0, r), 
                 a = 0.01, b = 1)
             visualization.visualize("vtk", (",,result.vtk", ",,result_grid.vtk"), fempy_emode.real)

@@ -4,8 +4,7 @@ import pylinear.linear_algebra as la
 
 
 
-def makeCompleteVector(complete_number_assignment, incomplete_vector,
-                       constraints):
+def make_complete_vector(complete_number_assignment, incomplete_vector, constraints):
     assert min(complete_number_assignment.values()) == 0
     assert max(complete_number_assignment.values()) == len(complete_number_assignment) - 1
 
@@ -31,14 +30,17 @@ def makeCompleteVector(complete_number_assignment, incomplete_vector,
 
 
 
-class tMeshFunction(object):
-    def __init__(self, mesh, number_assignment, vector):
+class MeshFunction(object):
+    def __init__(self, mesh, number_assignment, vector=None, typecode=num.Float):
         self.Mesh = mesh
         self.NumberAssignment = number_assignment
-        self.Vector = vector
+        if vector is None:
+            self.Vector = num.zeros((len(mesh.dofManager()),), typecode)
+        else:
+            self.Vector = vector
 
-    def copy(self, mesh = None, number_assignment = None, vector = None):
-        return tMeshFunction(
+    def copy(self, mesh=None, number_assignment=None, vector=None):
+        return MeshFunction(
             mesh or self.Mesh,
             number_assignment or self.NumberAssignment,
             vector or self.Vector)
@@ -47,7 +49,7 @@ class tMeshFunction(object):
     def mesh(self):
         return self.Mesh
 
-    def numberAssignment(self):
+    def number_assignment(self):
         return self.NumberAssignment
 
     def vector(self):
@@ -55,13 +57,13 @@ class tMeshFunction(object):
 
     # operations -----------------------------------------------------------------
     def conjugate(self):
-        return self.copy(vector = num.conjugate(self.Vector))
+        return self.copy(vector=num.conjugate(self.Vector))
 
     def __add__(self, other):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
 
-        return self.copy(vector = self.Vector + other.Vector)
+        return self.copy(vector=self.Vector + other.Vector)
 
     def __iadd__(self, other):
         assert self.Mesh is other.Mesh
@@ -74,7 +76,7 @@ class tMeshFunction(object):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
 
-        return self.copy(vector = self.Vector - other.Vector)
+        return self.copy(vector=self.Vector - other.Vector)
 
     def __isub__(self, other):
         assert self.Mesh is other.Mesh
@@ -83,28 +85,41 @@ class tMeshFunction(object):
         self.Vector -= other.Vector
         return self
 
-    def __mul__(self, factor):
-        return self.copy(vector = factor * self.Vector)
+    def __mul__(self, other):
+        if isinstance(other, MeshFunction):
+            assert self.Mesh is other.Mesh
+            assert self.NumberAssignment is other.NumberAssignment
 
-    def __imul__(self, factor):
-        self.Vector *= factor
-        return self
+            return self.copy(vector=num.multiply(self.Vector, other.Vector))
+        else:
+            return self.copy(vector=other * self.Vector)
+
+    def __imul__(self, other):
+        if isinstance(other, MeshFunction):
+            assert self.Mesh is other.Mesh
+            assert self.NumberAssignment is other.NumberAssignment
+
+            self.Vector = num.multiply(self.Vector, other.Vector)
+            return self
+        else:
+            self.Vector *= other
+            return self
 
     def __rmul__(self, factor):
-        return self.copy(vector = factor * self.Vector)
+        return self.copy(vector=factor * self.Vector)
 
     def __div__(self, divisor):
-        return self.copy(vector = self.Vector/ divisor)
+        return self.copy(vector=self.Vector/ divisor)
 
     def __idiv__(self, divisor):
         self.Vector /= divisor
         return self
 
     def realPart(self):
-        return self.copy(vector = self.Vector.real)
+        return self.copy(vector=self.Vector.real)
 
     def imaginaryPart(self):
-        return self.copy(vector = self.Vector.imaginary)
+        return self.copy(vector=self.Vector.imaginary)
 
     real = property(realPart)
     imaginary = property(imaginaryPart)
@@ -113,7 +128,7 @@ class tMeshFunction(object):
     def __getitem__(self, node):
         return self.Vector[self.NumberAssignment[node]]
 
-    def getValueOnElement(self, el, unit_point):
+    def get_value_on_element(self, el, unit_point):
         ffs = el.formFunctionKit().formFunctions()
         nodes = el.nodes()
 
@@ -123,7 +138,7 @@ class tMeshFunction(object):
             value += ff(unit_point) * self[node]
         return value
 
-    def getGradientOnElement(self, el, unit_point):
+    def get_gradient_on_element(self, el, unit_point):
         ffs = el.formFunctionKit().differentiatedFormFunctions()
         nodes = el.nodes()
 
@@ -133,7 +148,7 @@ class tMeshFunction(object):
             value += num.array([self[node] * deriv(unit_point) for deriv in grad])
         return value
 
-    def getRealGradientOnElement(self, el, unit_point):
+    def get_real_gradient_on_element(self, el, unit_point):
         return num.matrixmultiply(
             num.transpose(la.inverse(
             el.getTransformJacobian(unit_point))),
@@ -143,14 +158,14 @@ class tMeshFunction(object):
         el = self.Mesh.findElement(point)
         return self.getValueOnElement(el, el.transformToUnit(point))
 
-    def getGradient(self, point):
+    def get_gradient(self, point):
         el = self.Mesh.findElement(point)
         return self.getRealGradientOnElement(el, el.transformToUnit(point))
 
 
 
 
-def discretizeFunction(mesh, f, typecode = num.Float, number_assignment = None):
+def discretize_function(mesh, f, typecode = num.Float, number_assignment = None):
     if number_assignment is None:
         number_assignment = {}
         for i, node in enumerate(mesh.dofManager()):
@@ -160,13 +175,13 @@ def discretizeFunction(mesh, f, typecode = num.Float, number_assignment = None):
     for node in mesh.dofManager():
         vector[number_assignment[node]] = f(node.Coordinates)
 
-    return tMeshFunction(mesh, number_assignment, vector)
+    return MeshFunction(mesh, number_assignment, vector)
 
 
 
 
-def discretizeFunctionByIntegrals(mesh, f, mass_matrix, number_assignment, 
-                       typecode = num.Float):
+def discretize_function_by_inner_product(mesh, f, mass_matrix, number_assignment, 
+                                          typecode = num.Float):
     # use the formula:
     # \sum_j\alpha_j \int\psi_i(x)\psi_j(x) dx =!= \int f(x) \psi_i(x)
     # <=>
@@ -183,12 +198,12 @@ def discretizeFunctionByIntegrals(mesh, f, mass_matrix, number_assignment,
 
     alpha = mass_matrix <<num.solve>> beta
     
-    return tMeshFunction(mesh, number_assignment, alpha)
+    return MeshFunction(mesh, number_assignment, alpha)
 
 
 
 
-class tScalarProductCalculator:
+class ScalarProductCalculator:
     def __init__(self, number_assignment, mass_matrix):
         self.MassMatrix = mass_matrix
         self.NumberAssignment = number_assignment

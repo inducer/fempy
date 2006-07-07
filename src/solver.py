@@ -11,7 +11,7 @@ import mesh_function
 
 
 
-def solveSPDSystem(matrix_op, rhs, start_vector = None):
+def solve_spd_system(matrix_op, rhs, start_vector = None):
     h,w = matrix_op.shape
     if start_vector is None:
         x = num.zeros((w,), matrix_op.typecode())
@@ -34,18 +34,18 @@ def solveSPDSystem(matrix_op, rhs, start_vector = None):
 
 
 
-def getNodesWithTrackingId(mesh, id):
+def get_nodes_with_tracking_id(mesh, id):
     return [node 
-            for node in mesh.dofManager()
+            for node in mesh.dof_manager()
             if node.TrackingId == id]
 
 
 
 
-def getDirichletConstraints(mesh, u_d):
+def get_dirichlet_constraints(mesh, u_d):
     constraints = {}
     for node in [node 
-                 for node in mesh.dofManager()
+                 for node in mesh.dof_manager()
                  if node.TrackingId == "dirichlet"]:
         constraints[node] = (u_d(node.Coordinates), [])
 
@@ -54,7 +54,7 @@ def getDirichletConstraints(mesh, u_d):
 
 
 
-def buildStiffnessMatrix(mesh, number_assignment, typecode = num.Float):
+def build_stiffness_matrix(mesh, number_assignment, typecode = num.Float):
     dof_count = len(number_assignment)
     s = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
@@ -63,7 +63,7 @@ def buildStiffnessMatrix(mesh, number_assignment, typecode = num.Float):
         nonus = [number_assignment[node] for node in el.nodes()]
         s.add_scattered(
             nonus, nonus,
-            num.asarray(el.getVolumeIntegralsOverDifferentiatedFormFunctions(),
+            num.asarray(el.get_volume_integrals_over_differentiated_form_functions(),
                         typecode))
 
     job.done()
@@ -73,7 +73,7 @@ def buildStiffnessMatrix(mesh, number_assignment, typecode = num.Float):
 
 
 
-def buildMassMatrix(mesh, number_assignment, weight_function, typecode = num.Float):
+def build_mass_matrix(mesh, number_assignment, weight_function, typecode=num.Float):
     dof_count = len(number_assignment)
     m = num.zeros((dof_count, dof_count), typecode, num.SparseBuildMatrix)
 
@@ -82,7 +82,7 @@ def buildMassMatrix(mesh, number_assignment, weight_function, typecode = num.Flo
         nonus = [number_assignment[node] for node in el.nodes()]
         m.add_scattered(
             nonus, nonus,
-            num.asarray(el.getVolumeIntegralsOverFormFunctions(weight_function),
+            num.asarray(el.get_volume_integrals_over_form_functions(weight_function),
                         typecode))
 
     job.done()
@@ -108,22 +108,22 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
     intercept + coefficient_1 * getValue(node_1) + ...
     """
 
-    dof_manager = mesh.dofManager()
+    dof_manager = mesh.dof_manager()
     unconstrained_nodes = [node for node in dof_manager if not node in node_constraints]
     constrained_nodes = node_constraints.keys()
-    number_assignment = element.assignNodeNumbers(unconstrained_nodes)
-    complete_number_assignment = element.assignNodeNumbers(constrained_nodes, 
-                                                           number_assignment)
+    number_assignment = element.assign_node_numbers(unconstrained_nodes)
+    complete_number_assignment = element.assign_node_numbers(constrained_nodes, 
+                                                             number_assignment)
     dof_count = len(unconstrained_nodes)
 
-    full_s = buildStiffnessMatrix(mesh, complete_number_assignment)
+    full_s = build_stiffness_matrix(mesh, complete_number_assignment)
     s = full_s[:dof_count,:dof_count]
 
     b = num.zeros((dof_count,), num.Float)
 
     job = stopwatch.Job("rhs")
     for el in mesh.elements():
-        this_el_b = el.getVolumeIntegralsOverFormFunction(
+        this_el_b = el.get_volume_integrals_over_form_function(
             lambda x,formfunc_value: f(x) * formfunc_value)
         for node, v in zip(el.nodes(), this_el_b):
             try:
@@ -140,22 +140,22 @@ def solvePoisson(mesh, f, node_constraints, start_vector = None):
             b += boundary_value * full_s[:dof_count, nonu]
     job.done()
 
-    #visualization.writeGnuplotSparsityPattern(",,s.data", s)
+    #visualization.write_gnuplot_sparsity_pattern(",,s.data", s)
 
     compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
     s_op = op.MatrixOperator.make(compiled_s)
     
-    complete_vec = mesh_function.makeCompleteVector(
+    complete_vec = mesh_function.make_complete_vector(
         complete_number_assignment,
-        solveSPDSystem(s_op, -b),
+        solve_spd_system(s_op, -b),
         node_constraints)
-    return mesh_function.tMeshFunction(
+    return mesh_function.MeshFunction(
         mesh, complete_number_assignment, complete_vec)
 
 
 
 
-def resolveConstraints(constraints):
+def resolve_constraints(constraints):
     """Resolves the right hand sides of the constraint equations 
     to only unconstrained nodes.
     """
@@ -193,13 +193,13 @@ def resolveConstraints(constraints):
 
 
 
-def rayleighQuotient(s, m, vec):
+def rayleigh_quotient(s, m, vec):
     return (vec*s*vec.H)/(vec*m*vec.H)
 
 
 
 
-class tLaplacianEigenproblemSolver:
+class LaplacianEigenproblemSolver:
     def __init__(self, mesh, constrained_nodes,
                  f = None, g = lambda x: 1., typecode = num.Float,
                  given_number_assignment = None):
@@ -210,7 +210,7 @@ class tLaplacianEigenproblemSolver:
 
         self.Mesh = mesh
         
-        dof_manager = mesh.dofManager()
+        dof_manager = mesh.dof_manager()
         unconstrained_nodes = [node for node in dof_manager if node not in constrained_nodes]
         if given_number_assignment is None:
             # construct new node number assignment
@@ -221,7 +221,7 @@ class tLaplacianEigenproblemSolver:
                                                                    number_assignment)
         else:
             # make sure that the given node number assignment conforms to our convention
-            assert max(given_number_assignment.values()) == len(mesh.dofManager()) - 1
+            assert max(given_number_assignment.values()) == len(mesh.dof_manager()) - 1
 
             complete_number_assignment = self.CompleteNumberAssignment = \
                                          given_number_assignment
@@ -230,8 +230,8 @@ class tLaplacianEigenproblemSolver:
                 assert given_number_assignment[node] < len(unconstrained_nodes)
                 number_assignment[node] = given_number_assignment[node]
                                 
-        self.FullS = buildStiffnessMatrix(mesh, complete_number_assignment, typecode)
-        self.FullM = buildMassMatrix(mesh, complete_number_assignment, g, typecode)
+        self.FullS = build_stiffness_matrix(mesh, complete_number_assignment, typecode)
+        self.FullM = build_mass_matrix(mesh, complete_number_assignment, g, typecode)
 
         if f is not None:
             job = stopwatch.Job("f")
@@ -253,24 +253,24 @@ class tLaplacianEigenproblemSolver:
         self.ConstrainedSEx = self.ConstrainedMEx = None
         self.ConstraintOp = self.ConstraintHermOp = None
 
-    def stiffnessMatrix(self):
+    def stiffness_matrix(self):
         return self.FullSEx
 
-    def massMatrix(self):
+    def mass_matrix(self):
         return self.FullMEx
 
-    def nodeNumberAssignment(self):
+    def node_number_assignment(self):
         return self.CompleteNumberAssignment
 
-    def currentConstraints(self):
+    def current_constraints(self):
         return self.Constraints
 
-    def setupConstraints(self, constraints):
-        dof_manager = self.Mesh.dofManager()
+    def setup_constraints(self, constraints):
+        dof_manager = self.Mesh.dof_manager()
         full_dof_count = len(dof_manager)
         dof_count = full_dof_count - len(constraints)
 
-        resolved_constraints = resolveConstraints(constraints)
+        resolved_constraints = resolve_constraints(constraints)
 
         a = num.zeros((dof_count, full_dof_count), self.FullS.typecode(), 
                       num.SparseBuildMatrix)
@@ -295,13 +295,13 @@ class tLaplacianEigenproblemSolver:
         return a
 
     def solve(self, sigma, number_of_eigenvalues = 20, tolerance = 1e-10,
-              warning_threshold = 10):
+              warning_threshold = 10, allow_direct=True):
         if self.Constraints is None:
             raise RuntimeError, "need to set up constraints before solving"
 
         m_op = op.MatrixOperator.make(self.ConstrainedMEx)
 
-        if sigma == 0:
+        if sigma == 0 and (not allow_direct):
             m_inv_op = op.CGOperator.make(
                 m_op, 
                 tolerance=tolerance,
@@ -337,16 +337,16 @@ class tLaplacianEigenproblemSolver:
         # perform some invariant checking
         if warning_threshold is not None:
             for evalue, mf in result:
-                if self.computeEigenpairResidual(evalue, mf) > warning_threshold * tolerance:
+                if self.compute_eigenpair_residual(evalue, mf) > warning_threshold * tolerance:
                     print "PRECSION WARNING for ARPACK output."
 
         return result
 
-    def computeEigenpairResidual(self, eigenvalue, mesh_func):
+    def compute_eigenpair_residual(self, eigenvalue, mesh_func):
         if self.Constraints is None:
             raise RuntimeError, "need to set up constraints before verifying"
 
-        dof_count = len(self.Mesh.dofManager())- len(self.Constraints)
+        dof_count = len(self.Mesh.dof_manager())- len(self.Constraints)
         vector = num.conjugate(mesh_func.vector()[:dof_count])
 
         def m_sp(x,y): return x * (self.ConstrainedMEx*y.H)

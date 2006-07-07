@@ -8,7 +8,7 @@ import integration
 import expression
 import form_function
 
-class tFiniteElementError(Exception):
+class FiniteElementError(Exception):
     def __init__(self, value):
         Exception.__init__(self, value)
 
@@ -16,10 +16,10 @@ class tFiniteElementError(Exception):
 
 
 
-# tNode -----------------------------------------------------------------------
-class tNode(object):
-    def __init__(self, tag, coordinates = None, 
-                 tracking_id = None, shape_section = None):
+# Node ------------------------------------------------------------------------
+class Node(object):
+    def __init__(self, tag, coordinates=None, 
+                 tracking_id=None, shape_section=None):
         self.Coordinates = coordinates
         self.Tag = tag
         self.TrackingId = tracking_id
@@ -28,23 +28,23 @@ class tNode(object):
 
 
 
-# tDOFManager -----------------------------------------------------------------
-class tDOFManager(object):
+# DOFManager ------------------------------------------------------------------
+class DOFManager(object):
     def __init__(self):
         self._TagToNode = {}
         self.Nodes = []
         self._ConstrainedNodes = []
 
-    def registerNode(self, tag, coordinates = None, tracking_id = None, shape_section = None):
+    def register_node(self, tag, coordinates=None, tracking_id=None, shape_section=None):
         try:
             return self._TagToNode[tag]
         except KeyError:
-            node = tNode(tag, coordinates, tracking_id, shape_section)
+            node = Node(tag, coordinates, tracking_id, shape_section)
             self._TagToNode[tag] = node
             self.Nodes.append(node)
             return node
 
-    def getNodeByTag(self, tag):
+    def get_node_by_tag(self, tag):
         try:
             return self._TagToNode[tag]
         except KeyError:
@@ -60,7 +60,7 @@ class tDOFManager(object):
 
 
 # tools -----------------------------------------------------------------------
-def assignNodeNumbers(node_list, beginning_assignment = {}, next_number = None, increment = 1):
+def assign_node_numbers(node_list, beginning_assignment={}, next_number=None, increment=1):
     result = beginning_assignment.copy()
 
     if next_number is None:
@@ -79,10 +79,11 @@ def assignNodeNumbers(node_list, beginning_assignment = {}, next_number = None, 
 
 
 # finite element abstract interface -------------------------------------------
-class tFiniteElement(object):
+class FiniteElement(object):
     """This class is the abstract interface for an element. An element only
-    knows how to add various integral contributions to a matrix
-    given indirectly through a tMatrixBuilder."""
+    knows how to compute various integrals, as well as how to transform
+    its unit variant into the desired shape of the given instance.
+    """
 
     def __init__(self, base_nodes, dof_manager, form_function_kit):
         self.FormFunctionKit = form_function_kit
@@ -93,23 +94,23 @@ class tFiniteElement(object):
     def nodes(self):
         return self.Nodes
 
-    def formFunctionKit(self):
+    def form_function_kit(self):
         return self.FormFunctionKit
 
     # Tools ---------------------------------------------------------------------
-    def transformToReal(self, point):
+    def transform_to_real(self, point):
         """Transforms a unit vector inside the unit element to its corresponding
         vector in the transformed element.
         """
         raise NotImplementedError
 
-    def transformToUnit(self, point):
-        """The inverse of transformToReal.
+    def transform_to_unit(self, point):
+        """The inverse of transform_to_real.
         """
         raise NotImplementedError
 
-    def getTransformJacobian(self, point):
-        """Returns the Jacobian matrix of transformToReal. `point' is in unit 
+    def get_transform_jacobian(self, point):
+        """Returns the Jacobian matrix of transform_to_real. `point' is in unit 
         coordinates.
         """
         raise NotImplementedError
@@ -118,14 +119,14 @@ class tFiniteElement(object):
         """Returns the area occupied by the transformed element."""
         raise NotImplementedError
 
-    def isInElement(self, point):
+    def contains_point(self, point):
         """Returns whether `point' in transformed coordinates is inside the
         element.
         """
         raise NotImplementedError
 
     # Integral contributions ----------------------------------------------------
-    def getVolumeIntegralsOverDifferentiatedFormFunctions(self, which_derivative, factor = 1.):
+    def get_volume_integrals_over_differentiated_form_functions(self, which_derivative, factor = 1.):
         """This functions adds to the matrix built by `builder' the term 
         
         \int_{Element} d/dx \phi_i(x,y) d/dx \phi_j(x,y) d(x,y) (for which_derivative == [0])
@@ -140,7 +141,7 @@ class tFiniteElement(object):
         """
         raise NotImplementedError
 
-    def getVolumeIntegralsOverFormFunctions(self, f):
+    def get_volume_integrals_over_form_functions(self, f):
         """This functions adds to the matrix built by `builder' the term 
 
         \int_{Element} f(x,y) \phi_i(x,y) \phi_j(x,y) d(x,y)
@@ -153,7 +154,7 @@ class tFiniteElement(object):
         """
         raise NotImplementedError
 
-    def getVolumeIntegralsOverFormFunction(self, f, typecode = num.Float):
+    def get_volume_integrals_over_form_function(self, f, typecode = num.Float):
         """This functions adds to the matrix built by `builder' the term 
         
         \int_{Element} f((x,y), \phi_i(x,y)) d(x,y)
@@ -171,7 +172,7 @@ class tFiniteElement(object):
         """
         raise NotImplementedError
 
-    def getVolumeIntegralOver(self, f, coefficients):
+    def get_volume_integral_over(self, f, coefficients):
         """This functions returns the value of
 
         \int_{Element} f((x,y), u(x,y)) d(x,y)
@@ -185,7 +186,7 @@ class tFiniteElement(object):
         raise NotImplementedError
 
     # Visualization -------------------------------------------------------------
-    def getVisualizationData(self, solution_vector, vis_data):
+    def get_visualization_data(self, solution_vector, vis_data):
         """This function adds itself to the given visualization.tVisualizationData
         data structure, taking into account the given solution vector.
         """
@@ -195,7 +196,7 @@ class tFiniteElement(object):
 
 
 # Form function related -------------------------------------------------------
-class tInbetweenPoint:
+class InbetweenPoint:
     def __init__(self, node_a_index, node_b_index, numerator, denominator, tag = None):
         self.NodeAIndex = node_a_index
         self.NodeBIndex = node_b_index
@@ -203,15 +204,15 @@ class tInbetweenPoint:
         self.Denominator = denominator
         self.Tag = tag
 
-    def completeTag(self, tag_a, tag_b):
+    def complete_tag(self, tag_a, tag_b):
         if self.Tag:
             return (tag_a, tag_b, self.Numerator, self.Denominator, self.Tag)
         else:
             return (tag_a, tag_b, self.Numerator, self.Denominator)
 
 
-class tFormFunctionKit:
-    def __init__(self, order, points, extra_points = [], vis_segments = 1):
+class FormFunctionKit:
+    def __init__(self, order, points, extra_points=[], vis_segments=1):
         dimension = len(points[0])
 
         all_points = points[:]
@@ -236,13 +237,13 @@ class tFormFunctionKit:
             expression.differentiate(expr, "%i" % dim)), dimension)
             for dim in range(dimension) ] for expr in self._FormFunctionExpressions]
         
-    def formFunctions(self):
+    def form_functions(self):
         return self._FormFunctions
 
-    def differentiatedFormFunctions(self):
+    def differentiated_form_functions(self):
         return self._DifferentiatedFormFunctions
 
-    def getNode(self, base_node_list, dof_manager, element, inbetween_point):
+    def get_node(self, base_node_list, dof_manager, element, inbetween_point):
         na = base_node_list[inbetween_point.NodeAIndex]
         nb = base_node_list[inbetween_point.NodeBIndex]
         try:
@@ -250,9 +251,10 @@ class tFormFunctionKit:
         except RuntimeError:
             pa = self._Points[inbetween_point.NodeAIndex]
             pb = self._Points[inbetween_point.NodeBIndex]
-            coordinates = element.transformToReal(pa + (pb-pa) *
-                                                  float(inbetween_point.Numerator) /
-                                                  float(inbetween_point.Denominator))
+            coordinates = element.transform_to_real(
+                pa + (pb-pa) *
+                float(inbetween_point.Numerator) /
+                float(inbetween_point.Denominator))
 
             shape_section = None
             tracking_id = None
@@ -269,13 +271,13 @@ class tFormFunctionKit:
                                             shape_section
                                             )
 
-    def getNodes(self, base_nodes, dof_manager, element):
+    def get_nodes(self, base_nodes, dof_manager, element):
         result = base_nodes + \
-                 [self.getNode(base_nodes, dof_manager, element, inbetween_point) 
+                 [self.get_node(base_nodes, dof_manager, element, inbetween_point) 
                   for inbetween_point in self._ExtraPoints]
         return result
 
-    def recommendNumberOfVisualizationSegments(self):
+    def recommend_number_of_visualization_segments(self):
         return self._VisualizationSegments
 
 
@@ -284,22 +286,20 @@ class tFormFunctionKit:
 _Standard1DNodes = [num.array([0]), num.array([1])]
 _Standard2DNodes = [num.array([0,0]), num.array([1,0]), num.array([0,1])]
 
-LinearFormFunctionKit1D = tFormFunctionKit(1, _Standard1DNodes)
-LinearFormFunctionKit2DTriangle = tFormFunctionKit(1, _Standard2DNodes)
-QuadraticFormFunctionKit2DTriangle = tFormFunctionKit(2, _Standard2DNodes,
-                                                      [tInbetweenPoint(0, 1, 1, 2),
-                                                       tInbetweenPoint(1, 2, 1, 2),
-                                                       tInbetweenPoint(2, 0, 1, 2)],
-                                                      vis_segments = 4) # only 2 necessary
-# legacy support
-LinearFormFunctionKit = LinearFormFunctionKit2DTriangle
-QuadraticFormFunctionKit = QuadraticFormFunctionKit2DTriangle
+LinearFormFunctionKit1D = FormFunctionKit(1, _Standard1DNodes)
+
+LinearFormFunctionKit2DTriangle = FormFunctionKit(1, _Standard2DNodes)
+QuadraticFormFunctionKit2DTriangle = FormFunctionKit(2, _Standard2DNodes,
+                                                     [InbetweenPoint(0, 1, 1, 2),
+                                                      InbetweenPoint(1, 2, 1, 2),
+                                                      InbetweenPoint(2, 0, 1, 2)],
+                                                     vis_segments=4) # only 2 necessary
 
 
 
 
 # implementations -------------------------------------------------------------
-class tOneDimensionalFiniteElement(tFiniteElement):
+class OneDimensionalFiniteElement(FiniteElement):
     # initialization ------------------------------------------------------------
     def __init__(self, base_nodes, dof_manager, form_function_kit):
         self.Origin = base_nodes[0].Coordinates
@@ -310,86 +310,83 @@ class tOneDimensionalFiniteElement(tFiniteElement):
         self.Length = (self.End-self.Origin)[0]
         assert self.Length > 0
 
-        tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
+        FiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
     
     # Tools ---------------------------------------------------------------------
-    def transformToReal(self, point):
+    def transform_to_real(self, point):
         return self.Origin + self.Length * point
 
-    def transformToUnit(self, point):
+    def transform_to_unit(self, point):
         return (point-self.Origin) / self.Length
 
-    def getTransformJacobian(self, point):
+    def get_transform_jacobian(self, point):
         return num.array([[self.Length]], num.Float)
 
     def area(self):
         return self.Length
 
-    def boundingBox(self):
+    def bounding_box(self):
         return [self.Origin, self.Origin + num.array([self.Length], num.Float)]
 
-    def isInElement(self, point):
-        return 0 <= self.transformToUnit(point) <= 1
+    def contains_point(self, point):
+        return 0 <= self.transform_to_unit(point) <= 1
 
     # Integral contributions ----------------------------------------------------
-    def getVolumeIntegralsOverDifferentiatedFormFunctions(self, which_derivative = [0], factor = 1.):
+    def get_volume_integrals_over_differentiated_form_functions(self, which_derivative = [0], factor = 1.):
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count, ff_count), num.Float)
         for row in range(0, ff_count):
             for column in range(0, row + 1):
                 drdx = self.DifferentiatedFormFunctions[row][0]
                 dcdx = self.DifferentiatedFormFunctions[column][0]
-                integral = 1/self.Length * \
-                           integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
-                                                          lambda p: drdx(p)*dcdx(p))
+                integral = 1/self.Length * integration.integrate_along_line(
+                    self.RawOrigin, self.RawEnd,
+                    lambda p: drdx(p)*dcdx(p))
                 influence_matrix[row,column] = influence_matrix[column,row] =  integral
         return influence_matrix
         
-    def getVolumeIntegralsOverFormFunctions(self, f):
+    def get_volume_integrals_over_form_functions(self, f):
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count, ff_count), num.Float)
         for row in range(0, ff_count):
             for column in range(0, row + 1):
                 rf = self.FormFunctions[row]
                 cf = self.FormFunctions[column]
-                integral = self.Length * \
-                           integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
-                                                          lambda p: 
-                                                          f(self.transformToReal(p))
-                                                          *rf(p)*cf(p))
+                integral = self.Length * integration.integrate_along_line(
+                    self.RawOrigin, self.RawEnd, 
+                    lambda p: f(self.transform_to_real(p))*rf(p)*cf(p))
                 influence_matrix[row,column] = influence_matrix[column,row] = \
                                                integral
         return influence_matrix
                           
-
-    def getVolumeIntegralsOverFormFunction(self, f, typecode = num.Float):
+    def get_volume_integrals_over_form_function(self, f, typecode = num.Float):
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count,), typecode)
         for row in range(0, ff_count):
             rf = self.FormFunctions[row]
-            integral = self.Length * \
-                       integration.integrateAlongLine(self.RawOrigin, self.RawEnd,
-                                                      lambda p: f(self.transformToReal(p), rf(p)))
+            integral = self.Length * integration.integrate_along_line(
+                self.RawOrigin, self.RawEnd,
+                lambda p: f(self.transform_to_real(p), rf(p)))
             influence_matrix[row] = integral
         return influence_matrix
 
-    def getVolumeIntegralOver(self, f, coefficients):
+    def get_volume_integral_over(self, f, coefficients):
         zipped = zip(coefficients, self.FormFunctions)
-        def functionInIntegral(point):
+        def g(point):
             ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
             return f(point , ff_comb)
 
-        return self.Length * integration.integrateAlongLine(
-            self.RawOrigin, self.RawEnd, functionInIntegral)
+        return self.Length * integration.integrate_along_line(
+            self.RawOrigin, self.RawEnd, g)
 
-    def getVisualizationData(self, solution_mesh_func, vis_data):
+    def get_visualization_data(self, solution_mesh_func, vis_data):
         raise NotImplementedError
 
 
 
 
 
-class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
+class TwoDimensionalTriangularFiniteElement(FiniteElement):
     # initialization ------------------------------------------------------------
     def __init__(self, base_nodes, dof_manager, form_function_kit):
         x = [node.Coordinates[0] for node in base_nodes]
@@ -409,27 +406,27 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
         self.Area = 0.5 * determinant
         self.InverseDeterminant = 1./determinant
 
-        tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
+        FiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
     
     # Tools ---------------------------------------------------------------------
-    def transformToReal(self, point):
+    def transform_to_real(self, point):
         return num.matrixmultiply(self.TransformMatrix, point) + self.Origin
 
-    def transformToUnit(self, point):
+    def transform_to_unit(self, point):
         return num.matrixmultiply(self.TransformMatrixInverse, point - self.Origin)
 
-    def getTransformJacobian(self, point):
+    def get_transform_jacobian(self, point):
         return self.TransformMatrix
 
     def area(self):
         return self.Area
 
-    def boundingBox(self):
+    def bounding_box(self):
         coords = [node.Coordinates for node in self.Nodes]
         return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
-    def isInElement(self, point):
-        unit_coords = self.transformToUnit(point)
+    def contains_point(self, point):
+        unit_coords = self.transform_to_unit(point)
         neg_bound = -1e-6
         pos_bound = 1+1e-6
         return \
@@ -442,21 +439,21 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
         return sum([ nd.Coordinates for nd in self.Nodes[:3] ]) / 3.
 
     # Integral contributions ----------------------------------------------------
-    def getVolumeIntegralsOverDifferentiatedFormFunctions(self, which_derivative = [0,1], factor = 1.):
+    def get_volume_integrals_over_differentiated_form_functions(self, which_derivative = [0,1], factor = 1.):
         g00 = self.TransformMatrix[0,0]
         g01 = self.TransformMatrix[0,1]
         g10 = self.TransformMatrix[1,0]
         g11 = self.TransformMatrix[1,1]
 
-        def functionInIntegral(point):
+        def f_all(point):
             return (g11 * fdxr(point) - g10 * fdyr(point)) * \
                    (g11 * fdxc(point) - g10 * fdyc(point)) + \
                    (-g01 * fdxr(point) + g00 * fdyr(point)) * \
                    (-g01 * fdxc(point) + g00 * fdyc(point)) 
         if which_derivative == [0,1]:
-            fii = functionInIntegral
+            fii = f_all
         else:
-            raise tFiniteElementError, "which_derivative != [0,1] not implemented yet"
+            raise FiniteElementError, "which_derivative != [0,1] not implemented yet"
 
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count, ff_count), num.Float)
@@ -468,14 +465,14 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
                 fdyc = self.DifferentiatedFormFunctions[column][1]
                 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrateOnUnitTriangle(fii)
+                                               integration.integrate_on_unit_triangle(fii)
 
         return factor * self.InverseDeterminant * influence_matrix
 
-    def getVolumeIntegralsOverFormFunctions(self, f):
+    def get_volume_integrals_over_form_functions(self, f):
         jacobian_det = self.Area * 2
-        def functionInIntegral(point):
-            return f(self.transformToReal(point)) * fr(point) * fc(point)
+        def f(point):
+            return f(self.transform_to_real(point)) * fr(point) * fc(point)
 
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count, ff_count), num.Float)
@@ -485,11 +482,11 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
                 fc = self.FormFunctions[column]
 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrateOnUnitTriangle(functionInIntegral)
+                                               integration.integrate_on_unit_triangle(f)
 
         return jacobian_det * influence_matrix
 
-    def getVolumeIntegralsOverFormFunction(self, f, typecode = num.Float):
+    def get_volume_integrals_over_form_function(self, f, typecode = num.Float):
         n = len(self.FormFunctions)
         influences = num.zeros((n,), typecode)
         
@@ -497,44 +494,44 @@ class tTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
         for i in range(n):
             ff = self.FormFunctions[i]
-            influences[i] = jacobian_det * integration.integrateOnUnitTriangle(
-                lambda point: f(self.transformToReal(point) , ff(point)))
+            influences[i] = jacobian_det * integration.integrate_on_unit_triangle(
+                lambda point: f(self.transform_to_real(point) , ff(point)))
 
         return influences
 
-    def getVolumeIntegralOver(self, f, coefficients):
+    def get_volume_integral_over(self, f, coefficients):
         jacobian_det = self.Area * 2
         zipped = zip(coefficients, self.FormFunctions)
-        def functionInIntegral(point):
+        def g(point):
             ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
             return f(point , ff_comb)
 
-        return jacobian_det * integration.integrateOnUnitTriangle(functionInIntegral)
+        return jacobian_det * integration.integrate_on_unit_triangle(g)
 
-    def getVisualizationData(self, solution_mesh_func, vis_data):
-        _visualizeTriangle(vis_data, self, solution_mesh_func, 
-                           self.FormFunctionKit.recommendNumberOfVisualizationSegments())
+    def get_visualization_data(self, solution_mesh_func, vis_data):
+        _visualize_triangle(vis_data, self, solution_mesh_func, 
+                           self.FormFunctionKit.recommend_number_of_visualization_segments())
 
 
 
 
 
 # distorted elements ----------------------------------------------------------
-class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
+class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
     # initialization ------------------------------------------------------------
     def __init__(self, base_nodes, dof_manager, form_function_kit, 
                  distort_function, distort_jacobian, inverse_distort_function):
-        self.transformToReal = distort_function
-        self.transformToUnit = inverse_distort_function
+        self.transform_to_real = distort_function
+        self.transform_to_unit = inverse_distort_function
         self.getTransformJacobian = distort_jacobian
-        tFiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
+        FiniteElement.__init__(self, base_nodes, dof_manager, form_function_kit)
 
         # verify validity
         if False:
             def inverseNorm(f, inverse_f, point):
                 return op.norm_2(point - inverse_f(f(point)))
             inverse_norms = [ 
-                inverseNorm(self.transformToReal, self.transformToUnit, num.array(point)) 
+                inverseNorm(self.transform_to_real, self.transform_to_unit, num.array(point)) 
                 for point in 
                 [ [0.,0.], [0.1,0.], [0.1,0.1], [0,0.1], [0.371,0.126], [1.,0.], [0.,1.] ] ]
             print inverse_norms
@@ -542,18 +539,18 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
 
     # Tools ---------------------------------------------------------------------
     def area(self):
-        def functionInIntegral(point):
-            return math.fabs(la.determinant(self.getTransformJacobian(point)))
-        return integration.integrateOnUnitTriangle(functionInIntegral)
+        def f(point):
+            return math.fabs(la.determinant(self.get_transform_jacobian(point)))
+        return integration.integrate_on_unit_triangle(f)
 
-    def boundingBox(self):
+    def bounding_box(self):
         # FIXME: this will often be wrong
         coords = [node.Coordinates for node in self.Nodes]
         return reduce(num.minimum, coords), reduce(num.maximum, coords)
 
-    def isInElement(self, point):
+    def contains_point(self, point):
         try:
-            unit_coords = self.transformToUnit(point)
+            unit_coords = self.transform_to_unit(point)
             neg_bound = -1e-6
             pos_bound = 1+1e-6
             return \
@@ -567,8 +564,8 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
             return False
 
     # Integral contributions ----------------------------------------------------
-    def getVolumeIntegralsOverDifferentiatedFormFunctions(self, which_derivative = [0,1], factor = 1.):
-        def functionInIntegral(point):
+    def get_volume_integrals_over_differentiated_form_functions(self, which_derivative = [0,1], factor = 1.):
+        def f_all(point):
             g = self.getTransformJacobian(point)
             
             # determinant count:
@@ -585,9 +582,9 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
                     (-g[0,1] * fdxc(point) + g[0,0] * fdyc(point)))
 
         if which_derivative == [0,1]:
-            fii = functionInIntegral
+            fii = f_all
         else:
-            raise tFiniteElementError, "which_derivative != [0,1] not implemented yet"
+            raise FiniteElementError, "which_derivative != [0,1] not implemented yet"
 
         ff_count = len(self.FormFunctions)
         influence_matrix = num.zeros((ff_count, ff_count), num.Float)
@@ -599,14 +596,14 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
                 fdyc = self.DifferentiatedFormFunctions[column][1]
 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrateOnUnitTriangle(fii)
+                                               integration.integrate_on_unit_triangle(fii)
 
         return factor * influence_matrix
 
-    def getVolumeIntegralsOverFormFunctions(self, f):
-        def functionInIntegral(point):
+    def get_volume_integrals_over_form_functions(self, f):
+        def f(point):
             g = self.getTransformJacobian(point)
-            return f(self.transformToReal(point)) * math.fabs(la.determinant(g)) * \
+            return f(self.transform_to_real(point)) * math.fabs(la.determinant(g)) * \
                    fr(point) * fc(point)
 
         ff_count = len(self.FormFunctions)
@@ -617,42 +614,42 @@ class tDistortedTwoDimensionalTriangularFiniteElement(tFiniteElement):
                 fc = self.FormFunctions[column]
 
                 influence_matrix[row,column] = influence_matrix[column,row] = \
-                                               integration.integrateOnUnitTriangle(functionInIntegral)
+                                               integration.integrate_on_unit_triangle(f)
 
         return influence_matrix
     
-    def getVolumeIntegralsOverFormFunction(self,  f, typecode = num.Float):
+    def get_volume_integrals_over_form_function(self,  f, typecode = num.Float):
         n = len(self.FormFunctions)
         influences = num.zeros((n,), typecode)
         
-        def functionInIntegral(point):
+        def f(point):
             g = self.getTransformJacobian(point)
             return math.fabs(la.determinant(g)) * \
-                   f(self.transformToReal(point), ff(point))
+                   f(self.transform_to_real(point), ff(point))
         for i in range(n):
             ff = self.FormFunctions[i]
-            influences[i] = integration.integrateOnUnitTriangle(functionInIntegral)
+            influences[i] = integration.integrate_on_unit_triangle(f)
 
         return influences
 
-    def getVolumeIntegralOver(self, f, coefficients):
+    def get_volume_integral_over(self, f, coefficients):
         zipped = zip(coefficients, self.FormFunctions)
-        def functionInIntegral(point):
+        def g(point):
             ff_comb = sum([ coeff * ff(point) for coeff,ff in zipped])
             return math.fabs(la.determinant(self.getTransformJacobian(point))) * \
                    f(point , ff_comb)
 
-        return integration.integrateOnUnitTriangle(functionInIntegral)
+        return integration.integrate_on_unit_triangle(g)
 
-    def getVisualizationData(self, solution_mesh_func, vis_data):
-        segments = max(4, self.FormFunctionKit.recommendNumberOfVisualizationSegments())
-        _visualizeTriangle(vis_data, self, solution_mesh_func, segments)
+    def get_visualization_data(self, solution_mesh_func, vis_data):
+        segments = max(4, self.FormFunctionKit.recommend_number_of_visualization_segments())
+        _visualize_triangle(vis_data, self, solution_mesh_func, segments)
 
 
 
 
 # Tools ----------------------------------------------------------------
-def _visualizeTriangle(vis_data, element, solution_mesh_func, 
+def _visualize_triangle(vis_data, element, solution_mesh_func, 
                        segments = 8):
     form_function_kit = element.formFunctionKit()
     form_funcs = form_function_kit.formFunctions()
@@ -670,7 +667,7 @@ def _visualizeTriangle(vis_data, element, solution_mesh_func,
       
         line_of_node_numbers.append(
             vis_data.registerLocalNode(
-            element.transformToReal(pt), 
+            element.transform_to_real(pt), 
             solution_mesh_func.getValueOnElement(element, pt)))
 
     line_of_node_numbers.append(nuass[element_nodes[2]])
@@ -685,7 +682,7 @@ def _visualizeTriangle(vis_data, element, solution_mesh_func,
 
             line_of_node_numbers.append(
                 vis_data.registerLocalNode(
-                element.transformToReal(pt), 
+                element.transform_to_real(pt), 
                 solution_mesh_func.getValueOnElement(element, pt)))
 
         node_numbers_laid_out.append(line_of_node_numbers)

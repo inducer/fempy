@@ -1,10 +1,7 @@
-import pattern
 import pylinear.array as num
 import math
 import sets
 import expression_operators as eo
-
-VAR = pattern.VAR
 
 
 

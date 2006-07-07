@@ -4,7 +4,7 @@ import fempy.geometry as geometry
 import fempy.solver as solver
 import fempy.visualization as visualization
 
-def needsRefinement( vert_origin, vert_destination, vert_apex, area ):
+def needsRefinement(vert_origin, vert_destination, vert_apex, area):
     return area >= 3e-2
 
 alpha_1 = 1; alpha_2 = 40
