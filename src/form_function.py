@@ -1,5 +1,4 @@
 import pylinear.array as num
-import pylinear.operation as op
 import pymbolic
 
 

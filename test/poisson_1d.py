@@ -22,7 +22,9 @@ def u_d(x):
   else:
     return 0
 
-mesh = fempy.mesh.OneDimensionalMesh(-1, 1, 200, "dirichlet", "dirichlet")
+mesh = fempy.mesh.OneDimensionalMesh(-1, 1, 200, 
+        left_tracking_id="dirichlet", 
+        right_tracking_id="dirichlet")
 constraints = fempy.solver.get_dirichlet_constraints(mesh, u_d)
 solution = fempy.solver.solve_poisson(mesh, f, constraints)
 fempy.visualization.visualize_1d_mesh_function(solution, ",,1d_solution.data")

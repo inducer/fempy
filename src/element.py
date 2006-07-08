@@ -2,7 +2,7 @@ import math
 
 import pylinear.array as num
 import pylinear.linear_algebra as la
-import pylinear.operation as op
+import pylinear.computation as comp
 
 import integration
 import pymbolic
@@ -532,7 +532,7 @@ class DistortedTwoDimensionalTriangularFiniteElement(FiniteElement):
         # verify validity
         if False:
             def inverseNorm(f, inverse_f, point):
-                return op.norm_2(point - inverse_f(f(point)))
+                return comp.norm_2(point - inverse_f(f(point)))
             inverse_norms = [ 
                 inverseNorm(self.transform_to_real, self.transform_to_unit, num.array(point)) 
                 for point in 

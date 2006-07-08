@@ -1,7 +1,8 @@
 import math
 
 import pylinear.array as num
-import pylinear.operation as op
+import pylinear.computation as comp
+import pylinear.operator as op
 
 import pytools.stopwatch as stopwatch
 import element
@@ -28,7 +29,7 @@ def solve_spd_system(matrix_op, rhs, start_vector = None):
     matrix_op.apply(x, residual)
     residual -= rhs
 
-    print "  absolute residual: ", op.norm_2(residual)
+    print "  absolute residual: ", comp.norm_2(residual)
     return x
 
 
@@ -308,17 +309,17 @@ class LaplacianEigenproblemSolver:
                 precon_op=op.SSORPreconditioner.make(self.ConstrainedMEx))
 
             job = stopwatch.Job("arpack rci")
-            eigen_result = op.operator_eigenvectors(
+            eigen_result = comp.operator_eigenvectors(
                 m_inv_op * op.MatrixOperator.make(self.ConstrainedSEx), 
                 number_of_eigenvalues,
                 m_op, 
                 tolerance=tolerance,
-                which_eigenvalues=op.SMALLEST_MAGNITUDE)
+                which_eigenvalues=comp.SMALLEST_MAGNITUDE)
             job.done()
         else:
             shifted_mat_ex = self.ConstrainedSEx - sigma*self.ConstrainedMEx
             job = stopwatch.Job("arpack rci")
-            eigen_result = op.operator_eigenvectors(
+            eigen_result = comp.operator_eigenvectors(
                 op.UMFPACKOperator.make(shifted_mat_ex) * m_op, 
                 number_of_eigenvalues,
                 m_op, 

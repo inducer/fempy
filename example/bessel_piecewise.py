@@ -1,4 +1,4 @@
-import pylinear.operation as op
+import pylinear.computation as comp
 import fempy.mesh
 import fempy.geometry as geometry
 import fempy.solver as solver
@@ -10,7 +10,7 @@ def needs_refinement(vert_origin, vert_destination, vert_apex, area):
 alpha_1 = 1; alpha_2 = 40
 
 def alpha(x):
-    if op.norm_2(x) < 0.5:
+    if comp.norm_2(x) < 0.5:
         return alpha_1
     else:
         return alpha_2

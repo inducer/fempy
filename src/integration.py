@@ -1,5 +1,5 @@
 import pylinear.array as num
-import pylinear.operation as op
+import pylinear.computation as comp
 import math
 import pytools
 
@@ -107,7 +107,7 @@ def integrate_on_unit_interval_4(f):
 
 def integrate_along_line(point1, point2, f):
     direction = point2 - point1
-    return op.norm_2(direction)\
+    return comp.norm_2(direction)\
            * integrate_on_unit_interval_4(lambda x: f(point1 + x * direction))
 
 

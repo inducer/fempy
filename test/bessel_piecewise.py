@@ -1,6 +1,6 @@
 import sys, math
 import pylinear.array as num
-import pylinear.operation as op
+import pylinear.computation as comp
 import fempy.mesh
 import fempy.geometry as geometry
 import fempy.solver as solver
@@ -19,7 +19,7 @@ alpha_1 = 40; alpha_2 = 1
 origin = num.zeros((2,), num.Float)
 
 def alpha(r):
-    if op.norm_2(r) < 0.5:
+    if comp.norm_2(r) < 0.5:
         return alpha_1
     else:
         return alpha_2
@@ -97,10 +97,10 @@ for step in range(4):
         lambda_0 /= 100
         evalue_error += abs(lambda_0-fempy_evalue)**2
         print "found", mu_0, nu_0, lambda_0, fempy_evalue
-        print "f residual:", op.norm_2(num.array(findMyZero([mu_0, nu_0, lambda_0*100])))
+        print "f residual:", comp.norm_2(num.array(findMyZero([mu_0, nu_0, lambda_0*100])))
 
         def Rvector(r_vec):
-            return R(lambda_0, n, c11_0, c21_0, c22_0, op.norm_2(r_vec))
+            return R(lambda_0, n, c11_0, c21_0, c22_0, comp.norm_2(r_vec))
  
         if do_visualization:
             pytools.write_1d_gnuplot_graph(

@@ -8,7 +8,7 @@ import pymbolic
 import pymbolic.vector
 
 import pylinear.array as num
-import pylinear.operation as op
+import pylinear.computation as comp
 import pylinear.toybox as toybox
 
 import fempy.element as element
@@ -79,7 +79,7 @@ class ShapeSection:
                 if last_point is not None:
                     dtl, alpha = toybox.distance_to_line(last_point, start_point-last_point, point)
                     if -relative_threshold <= alpha <= 1+relative_threshold and \
-                              dtl <= op.norm_2(start_point-last_point) * relative_threshold:
+                              dtl <= comp.norm_2(start_point-last_point) * relative_threshold:
                         return True
                 if i.contains_point(point, relative_threshold):
                     return True
@@ -88,7 +88,7 @@ class ShapeSection:
                 if last_point is not None:
                     dtl, alpha = toybox.distance_to_line(last_point, i-last_point, point)
                     if -relative_threshold <= alpha <= 1+relative_threshold and \
-                              dtl <= op.norm_2(i-last_point) * relative_threshold:
+                              dtl <= comp.norm_2(i-last_point) * relative_threshold:
                         return True
                 last_point = i
         return False
@@ -178,7 +178,7 @@ class OneDimensionalMesh(Mesh):
         Mesh.__init__(self)
         a_vec = num.array([a], num.Float)
         b_vec = num.array([b], num.Float)
-        points = op.linspace(a_vec, b_vec, n)
+        points = comp.linspace(a_vec, b_vec, n)
 
         self.DOFManager.register_node(0, points[0], left_tracking_id)
         for i, p in list(enumerate(points))[1:-1]:
