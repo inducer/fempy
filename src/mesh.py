@@ -368,11 +368,11 @@ class _PyangleMesh(Mesh):
                                                                     [expr_reference_x, expr_reference_y])
                 expr_transform[deform_coord] = expr_alpha*(expr_guide-expr_linear_reference) \
                                                + expr_linear_transform[deform_coord]
+                expr_jac = pymbolic.jacobian(expr_transform, e_vec)
 
                 # compose inverse nonlinear transform
                 func_transform = pymbolic.VectorFunction(expr_transform, [pymbolic.var("x")])
-                func_transform_jacobian = pymbolic.MatrixFunction(
-                    pymbolic.jacobian(expr_transform, e_vec), [pymbolic.var("x")])
+                func_transform_jacobian = pymbolic.MatrixFunction(expr_jac, [pymbolic.var("x")])
 
                 el = self.ElementFactory.make_distorted(
                     my_nodes, self.DOFManager, 
