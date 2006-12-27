@@ -40,11 +40,11 @@ def one_at(*point):
 # form function creator -------------------------------------------------------
 def make_form_function_expression(order, dimensions, constraints, extra_expressions=[],
                                   variable=pymbolic.var("x")):
-    variables = [pymbolic.subscript(variable, pymbolic.const(i))
+    variables = [pymbolic.subscript(variable, i)
                  for i in range(dimensions)]
                                     
     expressions = [ 
-        pymbolic.product(*combination)
+        pymbolic.product(combination)
         for current_ord in range(0, order + 1)
         for combination in generate_combinations(variables, current_ord) ] \
         + extra_expressions

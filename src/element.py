@@ -235,8 +235,9 @@ class FormFunctionKit:
                                for expr in self._FormFunctionExpressions]
         ffe0 = self._FormFunctionExpressions[0]
         self._DifferentiatedFormFunctions =  [ [ 
-            pymbolic.compile(pymbolic.simplify(
-            pymbolic.differentiate(expr, pymbolic.subscript(v_x, dim))),
+            pymbolic.compile(
+                pymbolic.simplify(
+                    pymbolic.differentiate(expr, pymbolic.subscript(v_x, dim))),
                              variables=[v_x])
             for dim in range(dimension) ] for expr in self._FormFunctionExpressions]
         

@@ -18,7 +18,7 @@ def get_parallelogram(grid_vectors):
 
 def get_circle(radius, use_exact=True):
     sqrt2_inv = math.sqrt(2)/2 * radius
-    r_squared = pymbolic.const(radius * radius)
+    r_squared = radius * radius
     v_t = pymbolic.var("t")
 
     return [

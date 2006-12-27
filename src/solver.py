@@ -141,7 +141,8 @@ def solve_poisson(mesh, f, node_constraints, start_vector = None):
             b += boundary_value * full_s[:dof_count, nonu]
     job.done()
 
-    #visualization.write_gnuplot_sparsity_pattern(",,s.data", s)
+    #from fempy.visualization import write_gnuplot_sparsity_pattern
+    #write_gnuplot_sparsity_pattern(",,s.data", s)
 
     compiled_s = num.asarray(s, s.typecode(), num.SparseExecuteMatrix)
     s_op = op.MatrixOperator.make(compiled_s)
