@@ -2,7 +2,7 @@ import math
 
 import pytools
 
-import pyangle
+import meshpy.triangle as triangle
 
 import pymbolic
 import pymbolic.vector
@@ -199,7 +199,7 @@ class OneDimensionalMesh(Mesh):
 
 
 
-# Pyangle mesh ----------------------------------------------------------
+# Triangular Mesh -------------------------------------------------------
 class InverseDeformation:
     def __init__(self, f, f_prime, matinv, nc0):
         self.F = f
@@ -221,7 +221,7 @@ class InverseDeformation:
 
 
 
-class _PyangleMesh(Mesh):
+class _TriangularMesh(Mesh):
     """This is an internal class.
     Do not use from the outside.
     """
@@ -262,12 +262,12 @@ class _PyangleMesh(Mesh):
         return 2
 
     def _postprocess_triangle_output(self, out_p):
-        pts = out_p.Points
-        tris = out_p.Triangles
+        pts = out_p.points
+        tris = out_p.elements
 
         # read and reposition nodes -----------------------------------------------
-        for no in range(pts.size()):
-            marker = out_p.PointMarkers.get(no)
+        for no in range(len(pts)):
+            marker = out_p.point_markers[no]
             guide = self.find_shape_guide_number(marker)
             section = self.find_shape_section_by_number(marker)
 
@@ -277,23 +277,20 @@ class _PyangleMesh(Mesh):
 
             if isinstance(guide, ShapeGuide):
                 c = guide.DeformationCoordinate
-                pts.set_sub(no, c, guide.evaluate(pts.get_sub(no, 1-c)))
+                pts[no, c] = guide.evaluate(pts[no, 1-c])
 
-            coordinates = num.array([pts.get_sub(no, 0), pts.get_sub(no, 1)])
+            coordinates = num.array(pts[no])
             self.DOFManager.register_node(no, coordinates, tracking_id, section)
 
         # build elements ----------------------------------------------------------
         elements = []
-        for tri in range(tris.size()):
-            my_nodes = [self.DOFManager.get_node_by_tag(nd) 
-                        for nd in [tris.get_sub(tri, 0), 
-                                   tris.get_sub(tri, 1),
-                                   tris.get_sub(tri, 2)]]
+        for tri in range(len(tris)):
+            my_nodes = [self.DOFManager.get_node_by_tag(nd) for nd in tris[tri]]
 
             possible_guides = []
 
             for node in my_nodes:
-                guide = self.find_shape_guide_number(out_p.PointMarkers.get(node.Tag))
+                guide = self.find_shape_guide_number(out_p.point_markers[node.Tag])
 
                 if isinstance(guide, ShapeGuide) and guide not in possible_guides:
                     my_guided_nodes = []
@@ -387,14 +384,14 @@ class _PyangleMesh(Mesh):
     def get_refinement(self, element_needs_refining):
         input_p = self.GeneratingParameters.copy()
         
-        input_p.TriangleAreas.setup()
+        input_p.element_volumes.setup()
         marked_elements = 0
         for i, el in zip(range(len(self.Elements)), self.Elements):
             if element_needs_refining(el):
-                input_p.TriangleAreas.set(i, el.area() * 0.7)
+                input_p.element_volumes[i] = el.area() * 0.7
                 marked_elements += 1
             else:
-                input_p.TriangleAreas.set(i, -1)
+                input_p.element_volumes[i] = -1
 
         if marked_elements == 0:
             raise RuntimeError, "No elements marked for refinement."
@@ -402,7 +399,7 @@ class _PyangleMesh(Mesh):
         return MeshChange(self, _TwoDimensionalRefinedMesh(
             input_p, self.ShapeSections, self.ElementFactory))
 
-class TwoDimensionalMesh(_PyangleMesh):
+class TwoDimensionalMesh(_TriangularMesh):
     def __init__(self, shape_sections, hole_starts=[], 
                  refinement_func=None,
                  element_factory=element.ElementFactory2DTriangle(2)):
@@ -454,23 +451,22 @@ class TwoDimensionalMesh(_PyangleMesh):
             # bend end of section back to start point
             segments[-1] = (len(points)-1, section_start_point_index)
         
-        input_p = pyangle.TriangulationParameters()
-        pyangle.set_points(input_p, points, point_markers)
-        pyangle.set_segments(input_p, segments, segment_markers)
-        pyangle.set_holes(input_p, hole_starts)
+        input_p = triangle.MeshInfo()
+        input_p.set_points(points, point_markers)
+        input_p.set_segments(segments, segment_markers)
+        input_p.set_holes(hole_starts)
 
-        output_p = pyangle.triangulate(input_p, 
-                                       refinement_func=refinement_func)
+        output_p = triangle.build(input_p, refinement_func=refinement_func)
         
-        _PyangleMesh.__init__(self, output_p, shape_sections,
+        _TriangularMesh.__init__(self, output_p, shape_sections,
                               element_factory)
 
 
 
 
-class _TwoDimensionalRefinedMesh(_PyangleMesh):
+class _TwoDimensionalRefinedMesh(_TriangularMesh):
     def __init__(self, input_p, shape_sections, element_factory):
-        _PyangleMesh.__init__(self, pyangle.refine(input_p), 
+        _TriangularMesh.__init__(self, triangle.refine(input_p), 
                               shape_sections,
                               element_factory)
 

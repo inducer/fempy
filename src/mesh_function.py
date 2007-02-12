@@ -59,6 +59,9 @@ class MeshFunction(object):
     def conjugate(self):
         return self.copy(vector=num.conjugate(self.Vector))
 
+    def absolute(self):
+        return self.copy(vector=num.absolute(self.Vector))
+
     def __add__(self, other):
         assert self.Mesh is other.Mesh
         assert self.NumberAssignment is other.NumberAssignment
