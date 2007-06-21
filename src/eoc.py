@@ -29,17 +29,14 @@ def estimate_order_of_convergence(abscissae, errors):
 
 class EOCRecorder:
     def __init__(self):
-        self.History = []
-
-    def history(self):
-        return self.History
+        self.history = []
 
     def add_data_point(self, abscissa, error):
-        self.History.append((abscissa, error))
+        self.history.append((abscissa, error))
 
     def estimate_order_of_convergence(self, gliding_mean = None):
-        abscissae = num.array([ a for a,e in self.History ])
-        errors = num.array([ e for a,e in self.History ])
+        abscissae = num.array([ a for a,e in self.history ])
+        errors = num.array([ e for a,e in self.history ])
 
         size = len(abscissae)
         if gliding_mean is None:
@@ -54,12 +51,12 @@ class EOCRecorder:
 
     def write_gnuplot_file(self, filename):
         outfile = file(filename, "w")
-        for absc, err in self.History:
+        for absc, err in self.history:
             outfile.write("%f %f\n" % (absc, err))
         result = self.estimate_order_of_convergence()
         const = result[0,0]
         order = result[0,1]
         outfile.write("\n")
-        for absc, err in self.History:
+        for absc, err in self.history:
             outfile.write("%f %f\n" % (absc, const * absc**(-order)))
 
